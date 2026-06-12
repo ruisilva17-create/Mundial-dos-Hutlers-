@@ -29,7 +29,11 @@ const teamNameMap = {
 const flagMap = {
   Portugal:'🇵🇹', Brasil:'🇧🇷', Argentina:'🇦🇷', Espanha:'🇪🇸', França:'🇫🇷', Alemanha:'🇩🇪', Itália:'🇮🇹', Inglaterra:'🏴', México:'🇲🇽', 'África do Sul':'🇿🇦', 'Coreia do Sul':'🇰🇷', Chéquia:'🇨🇿', Canadá:'🇨🇦', 'Bósnia e Herzegovina':'🇧🇦', 'Estados Unidos':'🇺🇸', Uruguai:'🇺🇾', Paraguai:'🇵🇾', Colômbia:'🇨🇴', Equador:'🇪🇨', Japão:'🇯🇵', Marrocos:'🇲🇦', Croácia:'🇭🇷', Bélgica:'🇧🇪', 'Países Baixos':'🇳🇱', Suíça:'🇨🇭', Dinamarca:'🇩🇰', Suécia:'🇸🇪', Noruega:'🇳🇴', Polónia:'🇵🇱', Sérvia:'🇷🇸', Senegal:'🇸🇳', Gana:'🇬🇭', Nigéria:'🇳🇬', Egito:'🇪🇬', Catar:'🇶🇦', Austrália:'🇦🇺', 'Arábia Saudita':'🇸🇦', Haiti:'🇭🇹', Escócia:'🏴', Turquia:'🇹🇷', Ucrânia:'🇺🇦', Áustria:'🇦🇹', Argélia:'🇩🇿', Angola:'🇦🇴', Camarões:'🇨🇲', 'Costa do Marfim':'🇨🇮', 'RD Congo':'🇨🇩', Irão:'🇮🇷', Iraque:'🇮🇶', Uzbequistão:'🇺🇿', Jordânia:'🇯🇴', 'Nova Zelândia':'🇳🇿', Panamá:'🇵🇦', Honduras:'🇭🇳', 'Costa Rica':'🇨🇷', 'El Salvador':'🇸🇻', Curaçau:'🇨🇼', 'Nova Caledónia':'🇳🇨', Tunísia:'🇹🇳', 'Cabo Verde':'🇨🇻'
 };
-const teamPt = team => teamNameMap[team] || team;
+const cleanTeam = team => (team || '').replace(/^[A-Z]{2}\s+/, '').trim();
+const teamPt = team => {
+  const cleaned = cleanTeam(team);
+  return teamNameMap[cleaned] || cleaned;
+};
 const f = team => { const name = teamPt(team); return `${flagMap[name]||''} ${name}`.trim(); };
 
 function outcome(h,a){ if(h===null||a===null||h===undefined||a===undefined) return null; return h>a?'home':h<a?'away':'draw'; }
@@ -131,14 +135,16 @@ function isMatchLocked(m){ return !!m.kickoff && new Date(m.kickoff).getTime() <
 function matchPredictionsHtml(m, locked){
   const preds = state.predictions.filter(x=>x.match_id===m.id);
   const totalPlayers = state.players.length || 9;
-  const playerIdsWithBet = new Set(preds.map(p=>p.player_id));
-  const missingPlayers = state.players.filter(p=>!playerIdsWithBet.has(p.id)).map(p=>p.name);
-  const missingHtml = missingPlayers.length
-    ? `<p class="hint"><b>Faltam apostar:</b> ${missingPlayers.join(', ')}</p><button class="secondary small-btn" onclick="copyMissingBets(${m.id})">Copiar faltas para WhatsApp</button>`
-    : `<p class="hint">Todos os participantes já apostaram.</p>`;
-  if(!locked) return `<div class="bet-count"><b>${preds.length}/${totalPlayers}</b><span>participantes já apostaram</span></div>${missingHtml}<p class="hint">As apostas dos outros ficam escondidas até o jogo começar.</p>`;
+
+  // Informação simples por jogo: apenas contador.
+  // A lista de quem falta e o botão WhatsApp ficam agora numa caixa única no topo da aba Jogos.
+  if(!locked){
+    return `<div class="bet-count"><b>${preds.length}/${totalPlayers}</b><span>participantes já apostaram</span></div><p class="hint">As apostas dos outros ficam escondidas até o jogo começar.</p>`;
+  }
+
   if(!preds.length) return '<p class="hint">Apostas: ainda sem apostas.</p>';
-  return `<div class="bet-count"><b>${preds.length}/${totalPlayers}</b><span>participantes apostaram</span></div>${missingHtml}<div class="predictions"><b>Apostas:</b>${preds.map(pr=>{
+
+  return `<div class="bet-count"><b>${preds.length}/${totalPlayers}</b><span>participantes apostaram</span></div><div class="predictions"><b>Apostas:</b>${preds.map(pr=>{
     const player = state.players.find(p=>p.id===pr.player_id);
     const pts = matchPoints(pr,m);
     return `<div>${player?.name||'Jogador'}: <b>${pr.home_prediction}-${pr.away_prediction}</b>${(m.home_score!==null&&m.away_score!==null)?` · ${pts} pts`:''}</div>`;
@@ -163,10 +169,41 @@ async function copyMissingBets(matchId){
     prompt('Copia este texto para o WhatsApp:', text);
   }
 }
+
+function missingBetsSummary(){
+  const now = Date.now();
+  return state.matches
+    .filter(m=>!m.kickoff || new Date(m.kickoff).getTime() > now)
+    .map(m=>({ match:m, missing: missingPlayersForMatch(m.id) }))
+    .filter(x=>x.missing.length)
+    .sort((a,b)=>new Date(a.match.kickoff || 0) - new Date(b.match.kickoff || 0));
+}
+function missingBetsSummaryHtml(){
+  const items = missingBetsSummary();
+  if(!items.length){
+    return `<div class="summary-card"><h3>📢 Faltas de apostas</h3><p class="hint">Todos já apostaram nos jogos ainda em aberto.</p></div>`;
+  }
+  const preview = items.slice(0,5).map(x=>`<div class="missing-line"><b>${f(x.match.home_team)} vs ${f(x.match.away_team)}</b><br><span>Faltam: ${x.missing.join(', ')}</span></div>`).join('');
+  const extra = items.length > 5 ? `<p class="hint">+ ${items.length - 5} jogo(s) com faltas.</p>` : '';
+  return `<div class="summary-card"><h3>📢 Faltas de apostas</h3>${preview}${extra}<button class="secondary small-btn" onclick="copyMissingBetsSummary()">Copiar resumo para WhatsApp</button></div>`;
+}
+async function copyMissingBetsSummary(){
+  const items = missingBetsSummary();
+  const text = items.length
+    ? `Mundial dos Hutlers ⚽\n\nFaltam apostas:\n\n${items.map(x=>`${f(x.match.home_team)} vs ${f(x.match.away_team)}\n${x.missing.map(n=>`- ${n}`).join('\n')}`).join('\n\n')}`
+    : 'Mundial dos Hutlers ⚽\nTodos já apostaram nos jogos em aberto.';
+  try{
+    await navigator.clipboard.writeText(text);
+    alert('Resumo copiado. Cola no WhatsApp.');
+  }catch(e){
+    prompt('Copia este texto para o WhatsApp:', text);
+  }
+}
 function renderMatches(){
   if(!state.matches.length){ $('matches').innerHTML='<p class="hint">Ainda não há jogos.</p>'; return; }
   let lastDateKey = '';
-  $('matches').innerHTML=state.matches.map(m=>{
+  const missingSummary = state.player?.is_admin ? missingBetsSummaryHtml() : '';
+  $('matches').innerHTML = missingSummary + state.matches.map(m=>{
     const d = m.kickoff ? new Date(m.kickoff) : null;
     const dateKey = d ? d.toLocaleDateString('pt-PT', { weekday:'long', day:'2-digit', month:'2-digit', year:'numeric' }) : 'Sem data';
     const dateHeader = dateKey !== lastDateKey ? `<h3 class="date-header">${dateKey}</h3>` : '';
