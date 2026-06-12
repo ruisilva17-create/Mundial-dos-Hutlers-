@@ -79,6 +79,47 @@ function playerBreakdown(playerId){
     missingOpen
   };
 }
+
+function mvpDaJornadaHtml(){
+  const resultedMatches = state.matches
+    .filter(m => m.home_score !== null && m.away_score !== null && m.kickoff)
+    .sort((a,b) => new Date(b.kickoff) - new Date(a.kickoff));
+
+  if(!resultedMatches.length){
+    return `<div class="summary-card"><h3>🏆 MVP da Jornada</h3><p class="hint">Ainda não há jogos com resultado.</p></div>`;
+  }
+
+  const latestDate = new Date(resultedMatches[0].kickoff).toLocaleDateString('pt-PT');
+  const dayMatches = resultedMatches.filter(m => new Date(m.kickoff).toLocaleDateString('pt-PT') === latestDate);
+
+  const rows = state.players.map(p => {
+    let pts = 0;
+    let exact = 0;
+    let outcomeOnly = 0;
+
+    dayMatches.forEach(m => {
+      const pr = state.predictions.find(x => x.player_id === p.id && x.match_id === m.id);
+      if(!pr) return;
+      const mp = matchPoints(pr, m);
+      pts += mp;
+      if(mp === 5) exact += 1;
+      else if(mp === 3) outcomeOnly += 1;
+    });
+
+    return { name:p.name, pts, exact, outcomeOnly };
+  }).sort((a,b) => b.pts - a.pts || b.exact - a.exact || a.name.localeCompare(b.name));
+
+  const winners = rows.filter(r => r.pts > 0).slice(0,3);
+  const medal = i => i===0 ? '🥇' : i===1 ? '🥈' : '🥉';
+  const matchesLabel = dayMatches.length === 1 ? '1 jogo' : `${dayMatches.length} jogos`;
+
+  if(!winners.length){
+    return `<div class="summary-card"><h3>🏆 MVP da Jornada</h3><p class="hint">${latestDate} · ${matchesLabel} com resultado, mas ninguém pontuou ainda.</p></div>`;
+  }
+
+  return `<div class="summary-card"><h3>🏆 MVP da Jornada</h3><p class="hint">${latestDate} · ${matchesLabel} com resultado</p><div class="mvp-list">${winners.map((r,i)=>`<div class="mvp-row"><b>${medal(i)} ${r.name}</b><span>${r.pts} pts · ${r.exact} exato(s) · ${r.outcomeOnly} vencedor/empate</span></div>`).join('')}</div></div>`;
+}
+
 function renderRanking(){
   const rows=state.players.map(p=>{
     const bd = playerBreakdown(p.id);
@@ -89,7 +130,8 @@ function renderRanking(){
   const medal = i => i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : `${i+1}.º`;
   const top3 = rows.slice(0,3).map((r,i)=>`<div class="podium-card podium-${i+1}"><div class="podium-medal">${medal(i)}</div><div><b>${r.name}</b><span>${r.pts} pts</span></div></div>`).join('');
   const podium = rows.length ? `<div class="podium">${top3}</div>` : '';
-  $('ranking').innerHTML=summary + podium + `<table class="table"><tr><th>#</th><th>Nome</th><th>Jogos</th><th>Grupos</th><th>Bónus</th><th>Pontos</th></tr>${rows.map((r,i)=>`<tr class="${i<3?'top-row top-'+(i+1):''}"><td>${medal(i)}</td><td>${r.name}</td><td>${r.bd.matchPts}</td><td>${r.bd.groupPts}</td><td>${r.bd.bonusPts}</td><td><b>${r.pts}</b></td></tr>`).join('')}</table>`;
+  const mvp = mvpDaJornadaHtml();
+  $('ranking').innerHTML=summary + mvp + podium + `<table class="table"><tr><th>#</th><th>Nome</th><th>Jogos</th><th>Grupos</th><th>Bónus</th><th>Pontos</th></tr>${rows.map((r,i)=>`<tr class="${i<3?'top-row top-'+(i+1):''}"><td>${medal(i)}</td><td>${r.name}</td><td>${r.bd.matchPts}</td><td>${r.bd.groupPts}</td><td>${r.bd.bonusPts}</td><td><b>${r.pts}</b></td></tr>`).join('')}</table>`;
 }
 function renderBonus(){ const bp=state.bonusPreds.find(x=>x.player_id===state.player.id)||{}; $('championInput').value=bp.champion||''; $('runnerInput').value=bp.runner_up||''; $('scorerInput').value=bp.top_scorer||''; if(state.player.is_admin){ $('realChampion').value=state.bonusResults.champion||''; $('realRunner').value=state.bonusResults.runner_up||''; $('realScorer').value=state.bonusResults.top_scorer||''; } }
 async function saveBonus(){
