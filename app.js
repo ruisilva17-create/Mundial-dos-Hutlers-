@@ -28,8 +28,22 @@ const teamNameMap = {
 const flagMap = {
   Portugal:'🇵🇹', Brasil:'🇧🇷', Argentina:'🇦🇷', Espanha:'🇪🇸', França:'🇫🇷', Alemanha:'🇩🇪', Itália:'🇮🇹', Inglaterra:'🏴', México:'🇲🇽', 'África do Sul':'🇿🇦', 'Coreia do Sul':'🇰🇷', Chéquia:'🇨🇿', Canadá:'🇨🇦', 'Bósnia e Herzegovina':'🇧🇦', 'Estados Unidos':'🇺🇸', Uruguai:'🇺🇾', Paraguai:'🇵🇾', Colômbia:'🇨🇴', Equador:'🇪🇨', Japão:'🇯🇵', Marrocos:'🇲🇦', Croácia:'🇭🇷', Bélgica:'🇧🇪', 'Países Baixos':'🇳🇱', Suíça:'🇨🇭', Dinamarca:'🇩🇰', Suécia:'🇸🇪', Noruega:'🇳🇴', Polónia:'🇵🇱', Sérvia:'🇷🇸', Senegal:'🇸🇳', Gana:'🇬🇭', Nigéria:'🇳🇬', Egito:'🇪🇬', Catar:'🇶🇦', Austrália:'🇦🇺', 'Arábia Saudita':'🇸🇦', Haiti:'🇭🇹', Escócia:'🏴', Turquia:'🇹🇷', Ucrânia:'🇺🇦', Áustria:'🇦🇹', Argélia:'🇩🇿', Angola:'🇦🇴', Camarões:'🇨🇲', 'Costa do Marfim':'🇨🇮', 'RD Congo':'🇨🇩', Irão:'🇮🇷', Iraque:'🇮🇶', Uzbequistão:'🇺🇿', Jordânia:'🇯🇴', 'Nova Zelândia':'🇳🇿', Panamá:'🇵🇦', Honduras:'🇭🇳', 'Costa Rica':'🇨🇷', 'El Salvador':'🇸🇻', Curaçau:'🇨🇼', 'Nova Caledónia':'🇳🇨', Tunísia:'🇹🇳', 'Cabo Verde':'🇨🇻'
 };
-const teamPt = team => teamNameMap[team] || team;
-const f = team => { const name = teamPt(team); return `${flagMap[name]||''} ${name}`.trim(); };
+function cleanTeamName(team){
+  return String(team || '')
+    // Remove códigos ISO que vieram antes do nome, ex: "CA Canadá", "US Estados Unidos", "KR Coreia do Sul"
+    .replace(/^[A-Z]{2,3}\s+/, '')
+    .trim();
+}
+
+const teamPt = team => {
+  const cleaned = cleanTeamName(team);
+  return teamNameMap[cleaned] || cleaned;
+};
+
+const f = team => {
+  const name = teamPt(team);
+  return `${flagMap[name] || '🏳️'} ${name}`.trim();
+};
 
 function outcome(h,a){ if(h===null||a===null||h===undefined||a===undefined) return null; return h>a?'home':h<a?'away':'draw'; }
 function matchPoints(pred, match){ if(match.home_score===null||match.away_score===null||pred.home_prediction===null||pred.away_prediction===null) return 0; if(pred.home_prediction===match.home_score && pred.away_prediction===match.away_score) return 5; return outcome(pred.home_prediction,pred.away_prediction)===outcome(match.home_score,match.away_score)?3:0; }
