@@ -2,6 +2,13 @@ const SUPABASE_URL = 'https://tzdjugjaomfyircjvhxp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6ZGp1Z2phb21meWlyY2p2aHhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNTkzMjIsImV4cCI6MjA5NjgzNTMyMn0.DyoEAilo99tdZVVgbNFZ0xMgVRUq8EVFa1Bj4MTu-tM';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let state = { player:null, players:[], matches:[], predictions:[], groups:[], groupPreds:[], bonusPreds:[], bonusResults:null };
+let activeTab = 'ranking';
+function switchTab(tab){
+  activeTab = tab;
+  document.querySelectorAll('[data-tab-panel]').forEach(el=>el.classList.toggle('hidden', el.dataset.tabPanel !== tab));
+  document.querySelectorAll('[data-tab-btn]').forEach(el=>el.classList.toggle('active', el.dataset.tabBtn === tab));
+}
+
 // Apostas dos grupos fecham em 13/06/2026 às 12:00, hora de Portugal continental.
 const GROUP_PREDICTIONS_DEADLINE = new Date('2026-06-13T12:00:00+01:00');
 const $ = id => document.getElementById(id);
@@ -20,13 +27,13 @@ async function loadAll(){
 }
 function renderPlayers(){ $('playerSelect').innerHTML = state.players.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''); }
 async function login(){ const p=state.players.find(x=>String(x.id)===$('playerSelect').value); if(!p || p.pin !== $('pinInput').value){ alert('Nome ou PIN errado.'); return; } state.player=p; localStorage.setItem('playerId',p.id); $('login').classList.add('hidden'); $('app').classList.remove('hidden'); renderApp(); }
-function renderApp(){ $('who').textContent = state.player.name; $('adminBadge').classList.toggle('hidden',!state.player.is_admin); $('adminBonus').classList.toggle('hidden',!state.player.is_admin); $('adminGroups').classList.toggle('hidden',!state.player.is_admin); renderRanking(); renderBonus(); renderGroups(); renderMatches(); }
+function renderApp(){ $('who').textContent = state.player.name; $('adminBadge').classList.toggle('hidden',!state.player.is_admin); $('adminTabBtn').classList.toggle('hidden',!state.player.is_admin); $('adminBonus').classList.toggle('hidden',!state.player.is_admin); $('adminGroups').classList.toggle('hidden',!state.player.is_admin); if(!state.player.is_admin && activeTab==='admin') activeTab='ranking'; renderRanking(); renderBonus(); renderGroups(); renderMatches(); switchTab(activeTab); }
 function renderRanking(){ const rows=state.players.map(p=>{ let pts=0; state.predictions.filter(x=>x.player_id===p.id).forEach(pr=>{ const m=state.matches.find(mm=>mm.id===pr.match_id); if(m) pts+=matchPoints(pr,m); }); state.groupPreds.filter(x=>x.player_id===p.id).forEach(gp=>{ const g=state.groups.find(gg=>gg.id===gp.group_id); if(g) pts+=groupPoints(gp,g); }); pts += bonusPoints(state.bonusPreds.find(x=>x.player_id===p.id)); return {name:p.name, pts}; }).sort((a,b)=>b.pts-a.pts); $('ranking').innerHTML=`<table class="table"><tr><th>#</th><th>Nome</th><th>Pontos</th></tr>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.name}</td><td><b>${r.pts}</b></td></tr>`).join('')}</table>`; }
 function renderBonus(){ const bp=state.bonusPreds.find(x=>x.player_id===state.player.id)||{}; $('championInput').value=bp.champion||''; $('runnerInput').value=bp.runner_up||''; $('scorerInput').value=bp.top_scorer||''; if(state.player.is_admin){ $('realChampion').value=state.bonusResults.champion||''; $('realRunner').value=state.bonusResults.runner_up||''; $('realScorer').value=state.bonusResults.top_scorer||''; } }
 async function saveBonus(){ await sb.from('bonus_predictions').upsert({player_id:state.player.id, champion:$('championInput').value, runner_up:$('runnerInput').value, top_scorer:$('scorerInput').value, updated_at:new Date().toISOString()},{onConflict:'player_id'}); await loadAll(); alert('Bónus guardado.'); }
 async function saveBonusResults(){ await sb.from('bonus_results').upsert({id:1, champion:$('realChampion').value, runner_up:$('realRunner').value, top_scorer:$('realScorer').value, updated_at:new Date().toISOString()}); await loadAll(); alert('Resultados bónus guardados.'); }
 function groupsAreLocked(){ return Date.now() >= GROUP_PREDICTIONS_DEADLINE.getTime(); }
-function orderSelect(id, teams, selected, disabled=false){ return `<select id="${id}" ${disabled?'disabled':''}>${teams.map(t=>`<option ${t===selected?'selected':''}>${t}</option>`).join('')}</select>`; }
+function orderSelect(id, teams, selected, disabled=false){ return `<select id="${id}" ${disabled?'disabled':''}>${teams.map(t=>`<option value="${t}" ${t===selected?'selected':''}>${f(t)}</option>`).join('')}</select>`; }
 function renderGroups(){
   if(!state.groups.length){ $('groups').innerHTML='<p class="hint">Ainda não há grupos criados.</p>'; $('groupResults').innerHTML=''; return; }
   const locked = groupsAreLocked();
@@ -38,7 +45,11 @@ function renderGroups(){
   $('groups').innerHTML = lockNotice + state.groups.map(g=>{
     const gp=state.groupPreds.find(x=>x.player_id===state.player.id && x.group_id===g.id);
     const arr=gp?.predicted_order||g.teams;
-    return `<div class="groupbox"><h3>${g.name}</h3><div class="order">${[0,1,2,3].map(i=>`<label>${i+1}.º ${orderSelect(`gp-${g.id}-${i}`,g.teams,arr[i],locked)}</label>`).join('')}</div>${locked ? '<button disabled>Grupos bloqueados</button>' : `<button onclick="saveGroupPrediction(${g.id})">Guardar ${g.name}</button>`}</div>`;
+    const allPreds = state.groupPreds.filter(x=>x.group_id===g.id);
+    const visiblePreds = locked
+      ? `<div class="group-reveal"><b>Apostas do grupo:</b>${allPreds.length ? allPreds.map(x=>{ const pl=state.players.find(p=>p.id===x.player_id); return `<div>${pl?.name||'Jogador'}: ${x.predicted_order.map((t,i)=>`${i+1}.º ${f(t)}`).join(' · ')}</div>`; }).join('') : '<div class="hint">Ainda sem apostas.</div>'}</div>`
+      : `<p class="hint">${allPreds.length}/${state.players.length||9} participantes já apostaram neste grupo. As apostas dos outros ficam escondidas até ao bloqueio.</p>`;
+    return `<div class="groupbox"><h3>${g.name}</h3><div class="order">${[0,1,2,3].map(i=>`<label>${i+1}.º ${orderSelect(`gp-${g.id}-${i}`,g.teams,arr[i],locked)}</label>`).join('')}</div>${locked ? '<button disabled>Grupos bloqueados</button>' : `<button onclick="saveGroupPrediction(${g.id})">Guardar ${g.name}</button>`}${visiblePreds}</div>`;
   }).join('');
 
   if(state.player.is_admin){

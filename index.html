@@ -34,46 +34,65 @@
         <button id="logoutBtn" class="secondary">Sair</button>
       </div>
 
-      <section class="card">
-        <h2>Classificação geral</h2>
-        <div id="ranking"></div>
+      <nav class="tabs" aria-label="Separadores">
+        <button class="tab active" data-tab-btn="ranking" onclick="switchTab('ranking')">🏆 Classificação</button>
+        <button class="tab" data-tab-btn="jogos" onclick="switchTab('jogos')">⚽ Jogos / Resultados</button>
+        <button class="tab" data-tab-btn="grupos" onclick="switchTab('grupos')">📋 Grupos</button>
+        <button class="tab" data-tab-btn="bonus" onclick="switchTab('bonus')">⭐ Bónus</button>
+        <button id="adminTabBtn" class="tab hidden" data-tab-btn="admin" onclick="switchTab('admin')">🛠️ Admin</button>
+      </nav>
+
+      <section class="tab-panel" data-tab-panel="ranking">
+        <section class="card">
+          <h2>Classificação geral</h2>
+          <div id="ranking"></div>
+        </section>
       </section>
 
-      <section class="card">
-        <h2>Apostas bónus</h2>
-        <p class="hint">Campeão 10 pts · Finalista vencido 5 pts · Melhor marcador 5 pts</p>
-        <div class="grid3">
-          <label>Campeão <input id="championInput" placeholder="ex: Portugal" /></label>
-          <label>Finalista vencido <input id="runnerInput" placeholder="ex: Brasil" /></label>
-          <label>Melhor marcador <input id="scorerInput" placeholder="ex: Ronaldo" /></label>
-        </div>
-        <button id="saveBonusBtn">Guardar bónus</button>
+      <section class="tab-panel hidden" data-tab-panel="jogos">
+        <section class="card">
+          <h2>Jogos e resultados</h2>
+          <p class="hint">Antes do jogo começar, só vês a tua aposta. Depois do bloqueio, todos veem todas as apostas.</p>
+          <div id="matches"></div>
+        </section>
       </section>
 
-      <section id="adminBonus" class="card hidden">
-        <h2>Admin · Resultados bónus</h2>
-        <div class="grid3">
-          <label>Campeão real <input id="realChampion" /></label>
-          <label>Finalista vencido real <input id="realRunner" /></label>
-          <label>Melhor marcador real <input id="realScorer" /></label>
-        </div>
-        <button id="saveBonusResultsBtn">Guardar resultados bónus</button>
+      <section class="tab-panel hidden" data-tab-panel="grupos">
+        <section class="card">
+          <h2>Apostas nos grupos</h2>
+          <p class="hint">Ordena as equipas. Cada posição exata vale 3 pontos.</p>
+          <div id="groups"></div>
+        </section>
       </section>
 
-      <section class="card">
-        <h2>Apostas nos grupos</h2>
-        <p class="hint">Ordena as equipas. Cada posição exata vale 3 pontos.</p>
-        <div id="groups"></div>
+      <section class="tab-panel hidden" data-tab-panel="bonus">
+        <section class="card">
+          <h2>Apostas bónus</h2>
+          <p class="hint">Campeão 10 pts · Finalista vencido 5 pts · Melhor marcador 5 pts</p>
+          <div class="grid3">
+            <label>Campeão <input id="championInput" placeholder="ex: Portugal" /></label>
+            <label>Finalista vencido <input id="runnerInput" placeholder="ex: Brasil" /></label>
+            <label>Melhor marcador <input id="scorerInput" placeholder="ex: Ronaldo" /></label>
+          </div>
+          <button id="saveBonusBtn">Guardar bónus</button>
+        </section>
       </section>
 
-      <section id="adminGroups" class="card hidden">
-        <h2>Admin · Classificação final dos grupos</h2>
-        <div id="groupResults"></div>
-      </section>
+      <section class="tab-panel hidden" data-tab-panel="admin">
+        <section id="adminBonus" class="card hidden">
+          <h2>Admin · Resultados bónus</h2>
+          <div class="grid3">
+            <label>Campeão real <input id="realChampion" /></label>
+            <label>Finalista vencido real <input id="realRunner" /></label>
+            <label>Melhor marcador real <input id="realScorer" /></label>
+          </div>
+          <button id="saveBonusResultsBtn">Guardar resultados bónus</button>
+        </section>
 
-      <section class="card">
-        <h2>Jogos e apostas</h2>
-        <div id="matches"></div>
+        <section id="adminGroups" class="card hidden">
+          <h2>Admin · Classificação final dos grupos</h2>
+          <div id="groupResults"></div>
+        </section>
       </section>
     </section>
   </main>
