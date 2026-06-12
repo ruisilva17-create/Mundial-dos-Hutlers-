@@ -15,3 +15,7 @@ Versão com:
 3. Fazer commit. O Vercel atualiza automaticamente.
 
 PIN inicial de todos: `1234`.
+
+
+## Privacidade das apostas
+As apostas dos outros participantes ficam ocultas até à hora de início do jogo. Quando o jogo começa, as apostas bloqueiam e passam a ficar visíveis para todos.
