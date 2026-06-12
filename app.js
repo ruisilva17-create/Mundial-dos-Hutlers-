@@ -1,116 +1,34 @@
 const SUPABASE_URL = 'https://tzdjugjaomfyircjvhxp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6ZGp1Z2phb21meWlyY2p2aHhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNTkzMjIsImV4cCI6MjA5NjgzNTMyMn0.DyoEAilo99tdZVVgbNFZ0xMgVRUq8EVFa1Bj4MTu-tM';
-const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-const ALLOWED_PLAYERS = ['Rui','Walter','Bruno','Luís','Barbosa','Dani','Artur','Edu','Ronfe'];
-const ADMIN_NAME = 'Rui';
-let me = JSON.parse(localStorage.getItem('mdh_me') || 'null');
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let state = { player:null, players:[], matches:[], predictions:[], groups:[], groupPreds:[], bonusPreds:[], bonusResults:null };
 const $ = id => document.getElementById(id);
-
-$('name').innerHTML = ALLOWED_PLAYERS.map(n => `<option value="${n}">${n}</option>`).join('');
-
-const FLAGS = {
-  'Argentina':'🇦🇷','Australia':'🇦🇺','Austria':'🇦🇹','Belgium':'🇧🇪','Bosnia & Herzegovina':'🇧🇦','Brazil':'🇧🇷','Canada':'🇨🇦','Cape Verde':'🇨🇻','Colombia':'🇨🇴','Croatia':'🇭🇷','Curaçao':'🇨🇼','Czech Republic':'🇨🇿','DR Congo':'🇨🇩','Ecuador':'🇪🇨','Egypt':'🇪🇬','England':'🏴','France':'🇫🇷','Germany':'🇩🇪','Ghana':'🇬🇭','Haiti':'🇭🇹','Iran':'🇮🇷','Ivory Coast':'🇨🇮','Japan':'🇯🇵','Jordan':'🇯🇴','Mexico':'🇲🇽','Morocco':'🇲🇦','Netherlands':'🇳🇱','New Zealand':'🇳🇿','Norway':'🇳🇴','Panama':'🇵🇦','Paraguay':'🇵🇾','Portugal':'🇵🇹','Qatar':'🇶🇦','Saudi Arabia':'🇸🇦','Scotland':'🏴','Senegal':'🇸🇳','South Africa':'🇿🇦','South Korea':'🇰🇷','Spain':'🇪🇸','Sweden':'🇸🇪','Switzerland':'🇨🇭','Tunisia':'🇹🇳','Uruguay':'🇺🇾','USA':'🇺🇸','Uzbekistan':'🇺🇿',
-  'México':'🇲🇽','África do Sul':'🇿🇦','Coreia do Sul':'🇰🇷','República Checa':'🇨🇿','Estados Unidos':'🇺🇸','Alemanha':'🇩🇪','Costa do Marfim':'🇨🇮','Cabo Verde':'🇨🇻','Nova Zelândia':'🇳🇿','Arábia Saudita':'🇸🇦','Países Baixos':'🇳🇱'
-};
-function flag(team){ return FLAGS[team] || ''; }
-function teamLabel(team){ return `${flag(team)} ${team}`.trim(); }
-function outcomeLabel(outcome, match){
-  if(outcome === 'home') return `${teamLabel(match.home_team)} ganha`;
-  if(outcome === 'away') return `${teamLabel(match.away_team)} ganha`;
-  if(outcome === 'draw') return 'Empate';
-  return '—';
-}
-function actualOutcome(match){
-  if(match.home_score === null || match.home_score === undefined || match.away_score === null || match.away_score === undefined) return null;
-  if(match.home_score > match.away_score) return 'home';
-  if(match.home_score < match.away_score) return 'away';
-  return 'draw';
-}
-
-async function sha(text){
-  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
-}
-function isAdmin(){ return me && me.name === ADMIN_NAME; }
-function normName(name){ return ALLOWED_PLAYERS.find(n => n.toLowerCase() === name.toLowerCase()); }
-
-async function login(){
-  const name = normName($('name').value.trim());
-  const pin = $('pin').value.trim();
-  if(!name || !/^\d{4}$/.test(pin)) return alert('Escolhe o nome e escreve um PIN de 4 dígitos.');
-  const pinHash = await sha(pin);
-  const existing = await db.from('players').select('*').eq('name', name).maybeSingle();
-  if(existing.error) return alert(existing.error.message);
-  if(existing.data){
-    if(existing.data.pin !== pinHash) return alert('PIN errado.');
-    me = existing.data;
-  } else {
-    const created = await db.from('players').insert({name, pin: pinHash}).select().single();
-    if(created.error) return alert(created.error.message);
-    me = created.data;
-  }
-  localStorage.setItem('mdh_me', JSON.stringify(me));
-  showApp();
-}
-function logout(){ localStorage.removeItem('mdh_me'); location.reload(); }
-
-function score(pred, match){
-  const result = actualOutcome(match);
-  if(!result || !pred.prediction_outcome) return 0;
-  return pred.prediction_outcome === result ? 3 : 0;
-}
-function fmt(dt){ return dt ? new Date(dt).toLocaleString('pt-PT',{dateStyle:'short', timeStyle:'short'}) : 'sem hora'; }
-
-async function addMatch(){
-  if(!isAdmin()) return alert('Só o Rui pode adicionar jogos.');
-  const home_team=$('homeTeam').value.trim(), away_team=$('awayTeam').value.trim(), dt=$('kickoff').value;
-  if(!home_team || !away_team) return alert('Faltam equipas.');
-  const r = await db.from('matches').insert({home_team, away_team, kickoff: dt ? new Date(dt).toISOString() : null});
-  if(r.error) return alert(r.error.message);
-  $('homeTeam').value=$('awayTeam').value=$('kickoff').value='';
-  load();
-}
-async function savePrediction(matchId){
-  const outcome = $('outcome_'+matchId).value;
-  if(!['home','draw','away'].includes(outcome)) return alert('Escolhe vitória de uma equipa ou empate.');
-  const r = await db.from('predictions').upsert({player_id:me.id, match_id:matchId, prediction_outcome:outcome, home_prediction:null, away_prediction:null},{onConflict:'player_id,match_id'});
-  if(r.error) return alert(r.error.message);
-  load();
-}
-async function saveResult(matchId){
-  if(!isAdmin()) return alert('Só o Rui pode lançar resultados.');
-  const a=$('hr_'+matchId).value, b=$('ar_'+matchId).value;
-  const r = await db.from('matches').update({home_score:a===''?null:Number(a), away_score:b===''?null:Number(b)}).eq('id', matchId);
-  if(r.error) return alert(r.error.message);
-  load();
-}
-
-async function load(){
-  const [pRes,mRes,prRes] = await Promise.all([
-    db.from('players').select('*').order('created_at'),
-    db.from('matches').select('*').order('kickoff',{ascending:true, nullsFirst:false}),
-    db.from('predictions').select('*')
+const flagMap = {Portugal:'🇵🇹',Brazil:'🇧🇷',Brasil:'🇧🇷',Argentina:'🇦🇷',Spain:'🇪🇸',Espanha:'🇪🇸',France:'🇫🇷',França:'🇫🇷',Germany:'🇩🇪',Alemanha:'🇩🇪',Italy:'🇮🇹',Itália:'🇮🇹',England:'🏴',Inglaterra:'🏴',Mexico:'🇲🇽',México:'🇲🇽','South Africa':'🇿🇦','África do Sul':'🇿🇦','South Korea':'🇰🇷','Coreia do Sul':'🇰🇷','Czech Republic':'🇨🇿','República Checa':'🇨🇿',Canada:'🇨🇦',Canadá:'🇨🇦','Bosnia & Herzegovina':'🇧🇦','Bósnia e Herzegovina':'🇧🇦',USA:'🇺🇸','United States':'🇺🇸','Estados Unidos':'🇺🇸',Uruguay:'🇺🇾',Uruguai:'🇺🇾',Colombia:'🇨🇴',Colômbia:'🇨🇴',Japan:'🇯🇵',Japão:'🇯🇵',Morocco:'🇲🇦',Marrocos:'🇲🇦',Croatia:'🇭🇷',Croácia:'🇭🇷',Belgium:'🇧🇪',Bélgica:'🇧🇪',Netherlands:'🇳🇱','Países Baixos':'🇳🇱',Switzerland:'🇨🇭',Suíça:'🇨🇭',Denmark:'🇩🇰',Dinamarca:'🇩🇰',Sweden:'🇸🇪',Suécia:'🇸🇪',Norway:'🇳🇴',Noruega:'🇳🇴',Poland:'🇵🇱',Polónia:'🇵🇱',Serbia:'🇷🇸',Sérvia:'🇷🇸',Senegal:'🇸🇳',Ghana:'🇬🇭',Nigeria:'🇳🇬',Nigéria:'🇳🇬',Egypt:'🇪🇬',Egito:'🇪🇬',Qatar:'🇶🇦',Australia:'🇦🇺',Austrália:'🇦🇺','Saudi Arabia':'🇸🇦','Arábia Saudita':'🇸🇦'};
+const f = team => `${flagMap[team]||''} ${team}`;
+function outcome(h,a){ if(h===null||a===null||h===undefined||a===undefined) return null; return h>a?'home':h<a?'away':'draw'; }
+function matchPoints(pred, match){ if(match.home_score===null||match.away_score===null||pred.home_prediction===null||pred.away_prediction===null) return 0; if(pred.home_prediction===match.home_score && pred.away_prediction===match.away_score) return 5; return outcome(pred.home_prediction,pred.away_prediction)===outcome(match.home_score,match.away_score)?3:0; }
+function groupPoints(gp, group){ if(!group.final_order || !gp.predicted_order) return 0; return gp.predicted_order.reduce((sum,t,i)=>sum+(group.final_order[i]===t?3:0),0); }
+function bonusPoints(bp){ const r=state.bonusResults||{}; let pts=0; if(bp?.champion && r.champion && bp.champion.trim().toLowerCase()===r.champion.trim().toLowerCase()) pts+=10; if(bp?.runner_up && r.runner_up && bp.runner_up.trim().toLowerCase()===r.runner_up.trim().toLowerCase()) pts+=5; if(bp?.top_scorer && r.top_scorer && bp.top_scorer.trim().toLowerCase()===r.top_scorer.trim().toLowerCase()) pts+=5; return pts; }
+async function loadAll(){
+  const [players,matches,preds,groups,gpreds,bpreds,bres] = await Promise.all([
+    sb.from('players').select('*').order('id'), sb.from('matches').select('*').order('kickoff',{ascending:true}), sb.from('predictions').select('*'), sb.from('groups').select('*').order('name'), sb.from('group_predictions').select('*'), sb.from('bonus_predictions').select('*'), sb.from('bonus_results').select('*').eq('id',1).single()
   ]);
-  if(pRes.error||mRes.error||prRes.error) return alert((pRes.error||mRes.error||prRes.error).message);
-  const players=pRes.data||[], matches=mRes.data||[], preds=prRes.data||[];
-  $('players').innerHTML = ALLOWED_PLAYERS.map(n => `<span class="pill">${n}${players.some(p=>p.name===n)?' ✓':''}</span>`).join('');
-  $('matches').innerHTML = matches.length ? matches.map(m => {
-    const mine = preds.find(p => p.match_id===m.id && p.player_id===me.id) || {};
-    const locked = m.kickoff && new Date(m.kickoff) <= new Date();
-    const all = preds.filter(p => p.match_id===m.id).map(p => `${players.find(x=>x.id===p.player_id)?.name||'?'}: ${outcomeLabel(p.prediction_outcome, m)}`).join(' · ');
-    const resultText = actualOutcome(m) ? `<p class="small result">Resultado: ${m.home_score}-${m.away_score} · ${outcomeLabel(actualOutcome(m), m)}</p>` : '';
-    return `<div class="game"><h3><span>${teamLabel(m.home_team)}</span> <span class="vs">vs</span> <span>${teamLabel(m.away_team)}</span></h3><p class="muted">${fmt(m.kickoff)}</p>${resultText}<div class="row outcome-row"><select id="outcome_${m.id}"><option value="">Escolher aposta</option><option value="home" ${mine.prediction_outcome==='home'?'selected':''}>${teamLabel(m.home_team)} ganha</option><option value="draw" ${mine.prediction_outcome==='draw'?'selected':''}>Empate</option><option value="away" ${mine.prediction_outcome==='away'?'selected':''}>${teamLabel(m.away_team)} ganha</option></select><button ${locked?'disabled':''} onclick="savePrediction('${m.id}')">${locked?'Bloqueado':'Guardar aposta'}</button></div><p class="small">Apostas: ${all || 'ainda sem apostas'}</p>${isAdmin()?`<div class="row"><input id="hr_${m.id}" type="number" min="0" value="${m.home_score ?? ''}" placeholder="Golos ${m.home_team}"><input id="ar_${m.id}" type="number" min="0" value="${m.away_score ?? ''}" placeholder="Golos ${m.away_team}"><button onclick="saveResult('${m.id}')">Guardar resultado</button></div>`:''}</div>`;
-  }).join('') : '<p class="muted">Ainda não há jogos. O Rui pode adicionar jogos.</p>';
-  const totals = ALLOWED_PLAYERS.map(name => {
-    const player = players.find(p=>p.name===name);
-    const points = player ? preds.filter(pr=>pr.player_id===player.id).reduce((s,pr)=>s+score(pr, matches.find(m=>m.id===pr.match_id)||{}),0) : 0;
-    return {name, points};
-  }).sort((a,b)=>b.points-a.points || a.name.localeCompare(b.name));
-  $('ranking').innerHTML = totals.map(x=>`<li><strong>${x.name}</strong> — ${x.points} pts</li>`).join('');
+  state.players=players.data||[]; state.matches=matches.data||[]; state.predictions=preds.data||[]; state.groups=groups.data||[]; state.groupPreds=gpreds.data||[]; state.bonusPreds=bpreds.data||[]; state.bonusResults=bres.data||{};
+  renderPlayers(); if(state.player){ state.player = state.players.find(p=>p.id===state.player.id)||state.player; renderApp(); }
 }
-function showApp(){
-  $('login').classList.add('hidden'); $('app').classList.remove('hidden'); $('who').textContent='Olá, '+me.name+(isAdmin()?' · Admin':'');
-  document.querySelectorAll('.admin-only').forEach(el => el.classList.toggle('hidden', !isAdmin()));
-  load(); setInterval(load,15000);
-}
-if(me) showApp();
+function renderPlayers(){ $('playerSelect').innerHTML = state.players.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''); }
+async function login(){ const p=state.players.find(x=>String(x.id)===$('playerSelect').value); if(!p || p.pin !== $('pinInput').value){ alert('Nome ou PIN errado.'); return; } state.player=p; localStorage.setItem('playerId',p.id); $('login').classList.add('hidden'); $('app').classList.remove('hidden'); renderApp(); }
+function renderApp(){ $('who').textContent = state.player.name; $('adminBadge').classList.toggle('hidden',!state.player.is_admin); $('adminBonus').classList.toggle('hidden',!state.player.is_admin); $('adminGroups').classList.toggle('hidden',!state.player.is_admin); renderRanking(); renderBonus(); renderGroups(); renderMatches(); }
+function renderRanking(){ const rows=state.players.map(p=>{ let pts=0; state.predictions.filter(x=>x.player_id===p.id).forEach(pr=>{ const m=state.matches.find(mm=>mm.id===pr.match_id); if(m) pts+=matchPoints(pr,m); }); state.groupPreds.filter(x=>x.player_id===p.id).forEach(gp=>{ const g=state.groups.find(gg=>gg.id===gp.group_id); if(g) pts+=groupPoints(gp,g); }); pts += bonusPoints(state.bonusPreds.find(x=>x.player_id===p.id)); return {name:p.name, pts}; }).sort((a,b)=>b.pts-a.pts); $('ranking').innerHTML=`<table class="table"><tr><th>#</th><th>Nome</th><th>Pontos</th></tr>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.name}</td><td><b>${r.pts}</b></td></tr>`).join('')}</table>`; }
+function renderBonus(){ const bp=state.bonusPreds.find(x=>x.player_id===state.player.id)||{}; $('championInput').value=bp.champion||''; $('runnerInput').value=bp.runner_up||''; $('scorerInput').value=bp.top_scorer||''; if(state.player.is_admin){ $('realChampion').value=state.bonusResults.champion||''; $('realRunner').value=state.bonusResults.runner_up||''; $('realScorer').value=state.bonusResults.top_scorer||''; } }
+async function saveBonus(){ await sb.from('bonus_predictions').upsert({player_id:state.player.id, champion:$('championInput').value, runner_up:$('runnerInput').value, top_scorer:$('scorerInput').value, updated_at:new Date().toISOString()},{onConflict:'player_id'}); await loadAll(); alert('Bónus guardado.'); }
+async function saveBonusResults(){ await sb.from('bonus_results').upsert({id:1, champion:$('realChampion').value, runner_up:$('realRunner').value, top_scorer:$('realScorer').value, updated_at:new Date().toISOString()}); await loadAll(); alert('Resultados bónus guardados.'); }
+function orderSelect(id, teams, selected){ return `<select id="${id}">${teams.map(t=>`<option ${t===selected?'selected':''}>${t}</option>`).join('')}</select>`; }
+function renderGroups(){ if(!state.groups.length){ $('groups').innerHTML='<p class="hint">Ainda não há grupos criados.</p>'; $('groupResults').innerHTML=''; return; } $('groups').innerHTML=state.groups.map(g=>{ const gp=state.groupPreds.find(x=>x.player_id===state.player.id && x.group_id===g.id); const arr=gp?.predicted_order||g.teams; return `<div class="groupbox"><h3>${g.name}</h3><div class="order">${[0,1,2,3].map(i=>`<label>${i+1}.º ${orderSelect(`gp-${g.id}-${i}`,g.teams,arr[i])}</label>`).join('')}</div><button onclick="saveGroupPrediction(${g.id})">Guardar ${g.name}</button></div>`; }).join(''); if(state.player.is_admin){ $('groupResults').innerHTML=state.groups.map(g=>{ const arr=g.final_order||g.teams; return `<div class="groupbox"><h3>${g.name}</h3><div class="order">${[0,1,2,3].map(i=>`<label>${i+1}.º ${orderSelect(`gr-${g.id}-${i}`,g.teams,arr[i])}</label>`).join('')}</div><button onclick="saveGroupResult(${g.id})">Guardar classificação final</button></div>`; }).join(''); } }
+async function saveGroupPrediction(groupId){ const order=[0,1,2,3].map(i=>$(`gp-${groupId}-${i}`).value); if(new Set(order).size!==4){ alert('Não podes repetir equipas no mesmo grupo.'); return; } await sb.from('group_predictions').upsert({player_id:state.player.id, group_id:groupId, predicted_order:order, updated_at:new Date().toISOString()},{onConflict:'player_id,group_id'}); await loadAll(); alert('Aposta do grupo guardada.'); }
+async function saveGroupResult(groupId){ const order=[0,1,2,3].map(i=>$(`gr-${groupId}-${i}`).value); if(new Set(order).size!==4){ alert('Não podes repetir equipas.'); return; } await sb.from('groups').update({final_order:order}).eq('id',groupId); await loadAll(); alert('Classificação final guardada.'); }
+function renderMatches(){ if(!state.matches.length){ $('matches').innerHTML='<p class="hint">Ainda não há jogos.</p>'; return; } $('matches').innerHTML=state.matches.map(m=>{ const pr=state.predictions.find(x=>x.player_id===state.player.id && x.match_id===m.id)||{}; const admin = state.player.is_admin ? `<div class="scoreline"><label>Golos ${m.home_team}<input id="rh-${m.id}" type="number" value="${m.home_score??''}"></label><label>Golos ${m.away_team}<input id="ra-${m.id}" type="number" value="${m.away_score??''}"></label><button onclick="saveResult(${m.id})">Guardar resultado</button></div>` : ''; return `<div class="match"><div class="teams">${f(m.home_team)} vs ${f(m.away_team)}</div><div class="small">${m.kickoff?new Date(m.kickoff).toLocaleString('pt-PT'):''}</div><div class="scoreline"><label>${m.home_team}<input id="ph-${m.id}" type="number" value="${pr.home_prediction??''}"></label><label>${m.away_team}<input id="pa-${m.id}" type="number" value="${pr.away_prediction??''}"></label><button onclick="savePrediction(${m.id})">Guardar aposta</button><span class="small">${pr.id?'Pontos: '+matchPoints(pr,m):''}</span></div>${admin}</div>`; }).join(''); }
+async function savePrediction(matchId){ const h=$(`ph-${matchId}`).value, a=$(`pa-${matchId}`).value; if(h===''||a===''){ alert('Preenche os dois resultados.'); return; } await sb.from('predictions').upsert({player_id:state.player.id, match_id:matchId, home_prediction:Number(h), away_prediction:Number(a)},{onConflict:'player_id,match_id'}); await loadAll(); alert('Aposta guardada.'); }
+async function saveResult(matchId){ await sb.from('matches').update({home_score:Number($(`rh-${matchId}`).value), away_score:Number($(`ra-${matchId}`).value)}).eq('id',matchId); await loadAll(); alert('Resultado guardado.'); }
+$('loginBtn').onclick=login; $('logoutBtn').onclick=()=>{localStorage.removeItem('playerId'); location.reload();}; $('saveBonusBtn').onclick=saveBonus; $('saveBonusResultsBtn').onclick=saveBonusResults;
+loadAll().then(()=>{ const id=localStorage.getItem('playerId'); if(id){ const p=state.players.find(x=>String(x.id)===id); if(p){ state.player=p; $('login').classList.add('hidden'); $('app').classList.remove('hidden'); renderApp(); } } });

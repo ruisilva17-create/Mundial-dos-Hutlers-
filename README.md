@@ -1,9 +1,17 @@
 # Mundial dos Hutlers
 
-Versão com apostas apenas em vitória/empate/derrota (1X2) e bandeiras nas seleções.
+Versão com:
+- 9 participantes pré-criados
+- Rui e Walter como admins
+- Resultado exato = 5 pontos
+- Acertar vencedor/empate = 3 pontos
+- Grupos: 3 pontos por posição exata
+- Bónus: campeão 10, finalista vencido 5, melhor marcador 5
+- Bandeiras por emoji
 
-Antes de publicar esta versão, correr no Supabase o ficheiro:
+## Instalação
+1. Correr `migration_final.sql` no Supabase SQL Editor.
+2. Substituir no GitHub: `index.html`, `app.js`, `styles.css`, `README.md`.
+3. Fazer commit. O Vercel atualiza automaticamente.
 
-`migration_vitoria_empate.sql`
-
-Depois fazer upload de `index.html`, `styles.css` e `app.js` para o GitHub. O Vercel faz redeploy automático.
+PIN inicial de todos: `1234`.

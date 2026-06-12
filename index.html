@@ -1,63 +1,84 @@
 <!doctype html>
 <html lang="pt">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Mundial dos Hutlers</title>
   <link rel="stylesheet" href="styles.css" />
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
-  <main>
-    <header>
-      <p class="eyebrow">Mundial 2026 · bolão entre amigos</p>
-      <h1>Mundial dos Hutlers</h1>
-      <p>9 amigos, PIN individual, apostas 1X2 e ranking automático.</p>
-    </header>
+  <header>
+    <h1>🏆 Mundial dos Hutlers</h1>
+    <p>Resultado exato: 5 pts · Vencedor/empate: 3 pts · Grupos: 3 pts por posição exata</p>
+  </header>
 
-    <section class="card" id="login">
-      <h2>Entrar / criar PIN</h2>
-      <label>Nome</label>
-      <select id="name"></select>
-      <label>PIN de 4 dígitos</label>
-      <input id="pin" placeholder="1234" inputmode="numeric" maxlength="4" />
-      <button onclick="login()">Entrar</button>
-      <p class="small">Na primeira entrada, o PIN fica associado ao teu nome.</p>
+  <main>
+    <section id="login" class="card">
+      <h2>Entrar</h2>
+      <label>Participante
+        <select id="playerSelect"></select>
+      </label>
+      <label>PIN
+        <input id="pinInput" type="password" inputmode="numeric" placeholder="PIN" />
+      </label>
+      <button id="loginBtn">Entrar</button>
+      <p class="hint">PIN inicial de todos: 1234. Admins: Rui e Walter.</p>
     </section>
 
     <section id="app" class="hidden">
-      <div class="top">
-        <strong id="who"></strong>
-        <button class="secondary" onclick="logout()">Sair</button>
+      <div class="card topbar">
+        <div>
+          <strong id="who"></strong>
+          <span id="adminBadge" class="badge hidden">Admin</span>
+        </div>
+        <button id="logoutBtn" class="secondary">Sair</button>
       </div>
 
-      <section class="card admin-only hidden">
-        <h2>Adicionar jogo</h2>
-        <div class="grid">
-          <input id="homeTeam" placeholder="Equipa casa" />
-          <input id="awayTeam" placeholder="Equipa fora" />
-          <input id="kickoff" type="datetime-local" />
-          <button onclick="addMatch()">Adicionar</button>
+      <section class="card">
+        <h2>Classificação geral</h2>
+        <div id="ranking"></div>
+      </section>
+
+      <section class="card">
+        <h2>Apostas bónus</h2>
+        <p class="hint">Campeão 10 pts · Finalista vencido 5 pts · Melhor marcador 5 pts</p>
+        <div class="grid3">
+          <label>Campeão <input id="championInput" placeholder="ex: Portugal" /></label>
+          <label>Finalista vencido <input id="runnerInput" placeholder="ex: Brasil" /></label>
+          <label>Melhor marcador <input id="scorerInput" placeholder="ex: Ronaldo" /></label>
         </div>
+        <button id="saveBonusBtn">Guardar bónus</button>
+      </section>
+
+      <section id="adminBonus" class="card hidden">
+        <h2>Admin · Resultados bónus</h2>
+        <div class="grid3">
+          <label>Campeão real <input id="realChampion" /></label>
+          <label>Finalista vencido real <input id="realRunner" /></label>
+          <label>Melhor marcador real <input id="realScorer" /></label>
+        </div>
+        <button id="saveBonusResultsBtn">Guardar resultados bónus</button>
+      </section>
+
+      <section class="card">
+        <h2>Apostas nos grupos</h2>
+        <p class="hint">Ordena as equipas. Cada posição exata vale 3 pontos.</p>
+        <div id="groups"></div>
+      </section>
+
+      <section id="adminGroups" class="card hidden">
+        <h2>Admin · Classificação final dos grupos</h2>
+        <div id="groupResults"></div>
       </section>
 
       <section class="card">
         <h2>Jogos e apostas</h2>
-        <p class="small">Pontuação: vitória ou empate certo = 3 pontos. As apostas bloqueiam após a hora do jogo.</p>
         <div id="matches"></div>
-      </section>
-
-      <section class="card">
-        <h2>Ranking</h2>
-        <ol id="ranking"></ol>
-      </section>
-
-      <section class="card">
-        <h2>Participantes</h2>
-        <div id="players"></div>
       </section>
     </section>
   </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="app.js"></script>
 </body>
 </html>
