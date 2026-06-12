@@ -25,3 +25,8 @@ Atualização: antes do início do jogo, a app mostra quantos participantes já 
 
 
 Atualização: admins Rui e Walter podem agora usar o botão Limpar resultado em cada jogo.
+
+
+Atualização incluída:
+- Apostas dos grupos bloqueiam automaticamente a 13/06/2026 às 12:00 (hora de Portugal continental).
+- Barras do contador de participantes passam a azul com texto branco legível.

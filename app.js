@@ -2,6 +2,8 @@ const SUPABASE_URL = 'https://tzdjugjaomfyircjvhxp.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR6ZGp1Z2phb21meWlyY2p2aHhwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyNTkzMjIsImV4cCI6MjA5NjgzNTMyMn0.DyoEAilo99tdZVVgbNFZ0xMgVRUq8EVFa1Bj4MTu-tM';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let state = { player:null, players:[], matches:[], predictions:[], groups:[], groupPreds:[], bonusPreds:[], bonusResults:null };
+// Apostas dos grupos fecham em 13/06/2026 às 12:00, hora de Portugal continental.
+const GROUP_PREDICTIONS_DEADLINE = new Date('2026-06-13T12:00:00+01:00');
 const $ = id => document.getElementById(id);
 const flagMap = {Portugal:'🇵🇹',Brazil:'🇧🇷',Brasil:'🇧🇷',Argentina:'🇦🇷',Spain:'🇪🇸',Espanha:'🇪🇸',France:'🇫🇷',França:'🇫🇷',Germany:'🇩🇪',Alemanha:'🇩🇪',Italy:'🇮🇹',Itália:'🇮🇹',England:'🏴',Inglaterra:'🏴',Mexico:'🇲🇽',México:'🇲🇽','South Africa':'🇿🇦','África do Sul':'🇿🇦','South Korea':'🇰🇷','Coreia do Sul':'🇰🇷','Czech Republic':'🇨🇿','República Checa':'🇨🇿',Canada:'🇨🇦',Canadá:'🇨🇦','Bosnia & Herzegovina':'🇧🇦','Bósnia e Herzegovina':'🇧🇦',USA:'🇺🇸','United States':'🇺🇸','Estados Unidos':'🇺🇸',Uruguay:'🇺🇾',Uruguai:'🇺🇾',Colombia:'🇨🇴',Colômbia:'🇨🇴',Japan:'🇯🇵',Japão:'🇯🇵',Morocco:'🇲🇦',Marrocos:'🇲🇦',Croatia:'🇭🇷',Croácia:'🇭🇷',Belgium:'🇧🇪',Bélgica:'🇧🇪',Netherlands:'🇳🇱','Países Baixos':'🇳🇱',Switzerland:'🇨🇭',Suíça:'🇨🇭',Denmark:'🇩🇰',Dinamarca:'🇩🇰',Sweden:'🇸🇪',Suécia:'🇸🇪',Norway:'🇳🇴',Noruega:'🇳🇴',Poland:'🇵🇱',Polónia:'🇵🇱',Serbia:'🇷🇸',Sérvia:'🇷🇸',Senegal:'🇸🇳',Ghana:'🇬🇭',Nigeria:'🇳🇬',Nigéria:'🇳🇬',Egypt:'🇪🇬',Egito:'🇪🇬',Qatar:'🇶🇦',Australia:'🇦🇺',Austrália:'🇦🇺','Saudi Arabia':'🇸🇦','Arábia Saudita':'🇸🇦'};
 const f = team => `${flagMap[team]||''} ${team}`;
@@ -23,17 +25,38 @@ function renderRanking(){ const rows=state.players.map(p=>{ let pts=0; state.pre
 function renderBonus(){ const bp=state.bonusPreds.find(x=>x.player_id===state.player.id)||{}; $('championInput').value=bp.champion||''; $('runnerInput').value=bp.runner_up||''; $('scorerInput').value=bp.top_scorer||''; if(state.player.is_admin){ $('realChampion').value=state.bonusResults.champion||''; $('realRunner').value=state.bonusResults.runner_up||''; $('realScorer').value=state.bonusResults.top_scorer||''; } }
 async function saveBonus(){ await sb.from('bonus_predictions').upsert({player_id:state.player.id, champion:$('championInput').value, runner_up:$('runnerInput').value, top_scorer:$('scorerInput').value, updated_at:new Date().toISOString()},{onConflict:'player_id'}); await loadAll(); alert('Bónus guardado.'); }
 async function saveBonusResults(){ await sb.from('bonus_results').upsert({id:1, champion:$('realChampion').value, runner_up:$('realRunner').value, top_scorer:$('realScorer').value, updated_at:new Date().toISOString()}); await loadAll(); alert('Resultados bónus guardados.'); }
-function orderSelect(id, teams, selected){ return `<select id="${id}">${teams.map(t=>`<option ${t===selected?'selected':''}>${t}</option>`).join('')}</select>`; }
-function renderGroups(){ if(!state.groups.length){ $('groups').innerHTML='<p class="hint">Ainda não há grupos criados.</p>'; $('groupResults').innerHTML=''; return; } $('groups').innerHTML=state.groups.map(g=>{ const gp=state.groupPreds.find(x=>x.player_id===state.player.id && x.group_id===g.id); const arr=gp?.predicted_order||g.teams; return `<div class="groupbox"><h3>${g.name}</h3><div class="order">${[0,1,2,3].map(i=>`<label>${i+1}.º ${orderSelect(`gp-${g.id}-${i}`,g.teams,arr[i])}</label>`).join('')}</div><button onclick="saveGroupPrediction(${g.id})">Guardar ${g.name}</button></div>`; }).join(''); if(state.player.is_admin){ $('groupResults').innerHTML=state.groups.map(g=>{ const arr=g.final_order||g.teams; return `<div class="groupbox"><h3>${g.name}</h3><div class="order">${[0,1,2,3].map(i=>`<label>${i+1}.º ${orderSelect(`gr-${g.id}-${i}`,g.teams,arr[i])}</label>`).join('')}</div><button onclick="saveGroupResult(${g.id})">Guardar classificação final</button></div>`; }).join(''); } }
-async function saveGroupPrediction(groupId){ const order=[0,1,2,3].map(i=>$(`gp-${groupId}-${i}`).value); if(new Set(order).size!==4){ alert('Não podes repetir equipas no mesmo grupo.'); return; } await sb.from('group_predictions').upsert({player_id:state.player.id, group_id:groupId, predicted_order:order, updated_at:new Date().toISOString()},{onConflict:'player_id,group_id'}); await loadAll(); alert('Aposta do grupo guardada.'); }
+function groupsAreLocked(){ return Date.now() >= GROUP_PREDICTIONS_DEADLINE.getTime(); }
+function orderSelect(id, teams, selected, disabled=false){ return `<select id="${id}" ${disabled?'disabled':''}>${teams.map(t=>`<option ${t===selected?'selected':''}>${t}</option>`).join('')}</select>`; }
+function renderGroups(){
+  if(!state.groups.length){ $('groups').innerHTML='<p class="hint">Ainda não há grupos criados.</p>'; $('groupResults').innerHTML=''; return; }
+  const locked = groupsAreLocked();
+  const deadlineText = GROUP_PREDICTIONS_DEADLINE.toLocaleString('pt-PT', { dateStyle:'short', timeStyle:'short' });
+  const lockNotice = locked
+    ? `<p class="locked-note">🔒 Apostas dos grupos bloqueadas desde ${deadlineText}.</p>`
+    : `<p class="open-note">⏳ Podes alterar as apostas dos grupos até ${deadlineText}.</p>`;
+
+  $('groups').innerHTML = lockNotice + state.groups.map(g=>{
+    const gp=state.groupPreds.find(x=>x.player_id===state.player.id && x.group_id===g.id);
+    const arr=gp?.predicted_order||g.teams;
+    return `<div class="groupbox"><h3>${g.name}</h3><div class="order">${[0,1,2,3].map(i=>`<label>${i+1}.º ${orderSelect(`gp-${g.id}-${i}`,g.teams,arr[i],locked)}</label>`).join('')}</div>${locked ? '<button disabled>Grupos bloqueados</button>' : `<button onclick="saveGroupPrediction(${g.id})">Guardar ${g.name}</button>`}</div>`;
+  }).join('');
+
+  if(state.player.is_admin){
+    $('groupResults').innerHTML=state.groups.map(g=>{
+      const arr=g.final_order||g.teams;
+      return `<div class="groupbox"><h3>${g.name}</h3><div class="order">${[0,1,2,3].map(i=>`<label>${i+1}.º ${orderSelect(`gr-${g.id}-${i}`,g.teams,arr[i])}</label>`).join('')}</div><button onclick="saveGroupResult(${g.id})">Guardar classificação final</button></div>`;
+    }).join('');
+  }
+}
+async function saveGroupPrediction(groupId){ if(groupsAreLocked()){ alert('As apostas dos grupos já estão bloqueadas.'); return; } const order=[0,1,2,3].map(i=>$(`gp-${groupId}-${i}`).value); if(new Set(order).size!==4){ alert('Não podes repetir equipas no mesmo grupo.'); return; } await sb.from('group_predictions').upsert({player_id:state.player.id, group_id:groupId, predicted_order:order, updated_at:new Date().toISOString()},{onConflict:'player_id,group_id'}); await loadAll(); alert('Aposta do grupo guardada.'); }
 async function saveGroupResult(groupId){ const order=[0,1,2,3].map(i=>$(`gr-${groupId}-${i}`).value); if(new Set(order).size!==4){ alert('Não podes repetir equipas.'); return; } await sb.from('groups').update({final_order:order}).eq('id',groupId); await loadAll(); alert('Classificação final guardada.'); }
 function isMatchLocked(m){ return !!m.kickoff && new Date(m.kickoff).getTime() <= Date.now(); }
 function matchPredictionsHtml(m, locked){
   const preds = state.predictions.filter(x=>x.match_id===m.id);
   const totalPlayers = state.players.length || 9;
-  if(!locked) return `<div class="bet-count"><b>${preds.length}/${totalPlayers}</b> participantes já apostaram</div><p class="hint">As apostas dos outros ficam escondidas até o jogo começar.</p>`;
+  if(!locked) return `<div class="bet-count"><b>${preds.length}/${totalPlayers}</b><span>participantes já apostaram</span></div><p class="hint">As apostas dos outros ficam escondidas até o jogo começar.</p>`;
   if(!preds.length) return '<p class="hint">Apostas: ainda sem apostas.</p>';
-  return `<div class="bet-count"><b>${preds.length}/${totalPlayers}</b> participantes apostaram</div><div class="predictions"><b>Apostas:</b>${preds.map(pr=>{
+  return `<div class="bet-count"><b>${preds.length}/${totalPlayers}</b><span>participantes apostaram</span></div><div class="predictions"><b>Apostas:</b>${preds.map(pr=>{
     const player = state.players.find(p=>p.id===pr.player_id);
     const pts = matchPoints(pr,m);
     return `<div>${player?.name||'Jogador'}: <b>${pr.home_prediction}-${pr.away_prediction}</b>${(m.home_score!==null&&m.away_score!==null)?` · ${pts} pts`:''}</div>`;
