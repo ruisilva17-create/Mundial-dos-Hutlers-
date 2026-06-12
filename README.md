@@ -1,17 +1,9 @@
 # Mundial dos Hutlers
 
-App simples de bolão do Mundial 2026 para 9 participantes.
+Versão com apostas apenas em vitória/empate/derrota (1X2) e bandeiras nas seleções.
 
-## Participantes
-Rui, Walter, Bruno, Luís, Barbosa, Dani, Artur, Edu, Ronfe.
+Antes de publicar esta versão, correr no Supabase o ficheiro:
 
-## Admin
-Rui pode adicionar jogos e lançar resultados.
+`migration_vitoria_empate.sql`
 
-## Pontuação
-- Resultado exato: 5 pontos
-- Acertar vencedor/empate: 3 pontos
-- Acertar golos de uma equipa: 1 ponto por equipa
-
-## Publicar
-Faz upload destes ficheiros para o GitHub e importa o repositório no Vercel.
+Depois fazer upload de `index.html`, `styles.css` e `app.js` para o GitHub. O Vercel faz redeploy automático.

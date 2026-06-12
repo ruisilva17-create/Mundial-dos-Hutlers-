@@ -8,6 +8,25 @@ const $ = id => document.getElementById(id);
 
 $('name').innerHTML = ALLOWED_PLAYERS.map(n => `<option value="${n}">${n}</option>`).join('');
 
+const FLAGS = {
+  'Argentina':'🇦🇷','Australia':'🇦🇺','Austria':'🇦🇹','Belgium':'🇧🇪','Bosnia & Herzegovina':'🇧🇦','Brazil':'🇧🇷','Canada':'🇨🇦','Cape Verde':'🇨🇻','Colombia':'🇨🇴','Croatia':'🇭🇷','Curaçao':'🇨🇼','Czech Republic':'🇨🇿','DR Congo':'🇨🇩','Ecuador':'🇪🇨','Egypt':'🇪🇬','England':'🏴','France':'🇫🇷','Germany':'🇩🇪','Ghana':'🇬🇭','Haiti':'🇭🇹','Iran':'🇮🇷','Ivory Coast':'🇨🇮','Japan':'🇯🇵','Jordan':'🇯🇴','Mexico':'🇲🇽','Morocco':'🇲🇦','Netherlands':'🇳🇱','New Zealand':'🇳🇿','Norway':'🇳🇴','Panama':'🇵🇦','Paraguay':'🇵🇾','Portugal':'🇵🇹','Qatar':'🇶🇦','Saudi Arabia':'🇸🇦','Scotland':'🏴','Senegal':'🇸🇳','South Africa':'🇿🇦','South Korea':'🇰🇷','Spain':'🇪🇸','Sweden':'🇸🇪','Switzerland':'🇨🇭','Tunisia':'🇹🇳','Uruguay':'🇺🇾','USA':'🇺🇸','Uzbekistan':'🇺🇿',
+  'México':'🇲🇽','África do Sul':'🇿🇦','Coreia do Sul':'🇰🇷','República Checa':'🇨🇿','Estados Unidos':'🇺🇸','Alemanha':'🇩🇪','Costa do Marfim':'🇨🇮','Cabo Verde':'🇨🇻','Nova Zelândia':'🇳🇿','Arábia Saudita':'🇸🇦','Países Baixos':'🇳🇱'
+};
+function flag(team){ return FLAGS[team] || ''; }
+function teamLabel(team){ return `${flag(team)} ${team}`.trim(); }
+function outcomeLabel(outcome, match){
+  if(outcome === 'home') return `${teamLabel(match.home_team)} ganha`;
+  if(outcome === 'away') return `${teamLabel(match.away_team)} ganha`;
+  if(outcome === 'draw') return 'Empate';
+  return '—';
+}
+function actualOutcome(match){
+  if(match.home_score === null || match.home_score === undefined || match.away_score === null || match.away_score === undefined) return null;
+  if(match.home_score > match.away_score) return 'home';
+  if(match.home_score < match.away_score) return 'away';
+  return 'draw';
+}
+
 async function sha(text){
   const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
@@ -36,13 +55,9 @@ async function login(){
 function logout(){ localStorage.removeItem('mdh_me'); location.reload(); }
 
 function score(pred, match){
-  if(match.home_score === null || match.home_score === undefined || match.away_score === null || match.away_score === undefined) return 0;
-  let pts = 0;
-  if(pred.home_prediction === match.home_score && pred.away_prediction === match.away_score) pts += 5;
-  else if(Math.sign(pred.home_prediction - pred.away_prediction) === Math.sign(match.home_score - match.away_score)) pts += 3;
-  if(pred.home_prediction === match.home_score) pts += 1;
-  if(pred.away_prediction === match.away_score) pts += 1;
-  return pts;
+  const result = actualOutcome(match);
+  if(!result || !pred.prediction_outcome) return 0;
+  return pred.prediction_outcome === result ? 3 : 0;
 }
 function fmt(dt){ return dt ? new Date(dt).toLocaleString('pt-PT',{dateStyle:'short', timeStyle:'short'}) : 'sem hora'; }
 
@@ -56,9 +71,9 @@ async function addMatch(){
   load();
 }
 async function savePrediction(matchId){
-  const a = Number($('hp_'+matchId).value), b = Number($('ap_'+matchId).value);
-  if(Number.isNaN(a)||Number.isNaN(b)||a<0||b<0) return alert('Resultado inválido.');
-  const r = await db.from('predictions').upsert({player_id:me.id, match_id:matchId, home_prediction:a, away_prediction:b},{onConflict:'player_id,match_id'});
+  const outcome = $('outcome_'+matchId).value;
+  if(!['home','draw','away'].includes(outcome)) return alert('Escolhe vitória de uma equipa ou empate.');
+  const r = await db.from('predictions').upsert({player_id:me.id, match_id:matchId, prediction_outcome:outcome, home_prediction:null, away_prediction:null},{onConflict:'player_id,match_id'});
   if(r.error) return alert(r.error.message);
   load();
 }
@@ -82,8 +97,9 @@ async function load(){
   $('matches').innerHTML = matches.length ? matches.map(m => {
     const mine = preds.find(p => p.match_id===m.id && p.player_id===me.id) || {};
     const locked = m.kickoff && new Date(m.kickoff) <= new Date();
-    const all = preds.filter(p => p.match_id===m.id).map(p => `${players.find(x=>x.id===p.player_id)?.name||'?'}: ${p.home_prediction}-${p.away_prediction}`).join(' · ');
-    return `<div class="game"><h3>${m.home_team} vs ${m.away_team}</h3><p class="muted">${fmt(m.kickoff)}</p><div class="row"><input id="hp_${m.id}" type="number" min="0" value="${mine.home_prediction ?? ''}" placeholder="${m.home_team}"><input id="ap_${m.id}" type="number" min="0" value="${mine.away_prediction ?? ''}" placeholder="${m.away_team}"><button ${locked?'disabled':''} onclick="savePrediction('${m.id}')">${locked?'Bloqueado':'Guardar aposta'}</button></div><p class="small">Apostas: ${all || 'ainda sem apostas'}</p>${isAdmin()?`<div class="row"><input id="hr_${m.id}" type="number" min="0" value="${m.home_score ?? ''}" placeholder="Resultado ${m.home_team}"><input id="ar_${m.id}" type="number" min="0" value="${m.away_score ?? ''}" placeholder="Resultado ${m.away_team}"><button onclick="saveResult('${m.id}')">Guardar resultado</button></div>`:''}</div>`;
+    const all = preds.filter(p => p.match_id===m.id).map(p => `${players.find(x=>x.id===p.player_id)?.name||'?'}: ${outcomeLabel(p.prediction_outcome, m)}`).join(' · ');
+    const resultText = actualOutcome(m) ? `<p class="small result">Resultado: ${m.home_score}-${m.away_score} · ${outcomeLabel(actualOutcome(m), m)}</p>` : '';
+    return `<div class="game"><h3><span>${teamLabel(m.home_team)}</span> <span class="vs">vs</span> <span>${teamLabel(m.away_team)}</span></h3><p class="muted">${fmt(m.kickoff)}</p>${resultText}<div class="row outcome-row"><select id="outcome_${m.id}"><option value="">Escolher aposta</option><option value="home" ${mine.prediction_outcome==='home'?'selected':''}>${teamLabel(m.home_team)} ganha</option><option value="draw" ${mine.prediction_outcome==='draw'?'selected':''}>Empate</option><option value="away" ${mine.prediction_outcome==='away'?'selected':''}>${teamLabel(m.away_team)} ganha</option></select><button ${locked?'disabled':''} onclick="savePrediction('${m.id}')">${locked?'Bloqueado':'Guardar aposta'}</button></div><p class="small">Apostas: ${all || 'ainda sem apostas'}</p>${isAdmin()?`<div class="row"><input id="hr_${m.id}" type="number" min="0" value="${m.home_score ?? ''}" placeholder="Golos ${m.home_team}"><input id="ar_${m.id}" type="number" min="0" value="${m.away_score ?? ''}" placeholder="Golos ${m.away_team}"><button onclick="saveResult('${m.id}')">Guardar resultado</button></div>`:''}</div>`;
   }).join('') : '<p class="muted">Ainda não há jogos. O Rui pode adicionar jogos.</p>';
   const totals = ALLOWED_PLAYERS.map(name => {
     const player = players.find(p=>p.name===name);
