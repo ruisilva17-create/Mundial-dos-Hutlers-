@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mundial dos Hutlers</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">Mundial 2026 · bolão entre amigos</p>
+      <h1>Mundial dos Hutlers</h1>
+      <p>9 amigos, PIN individual, prognósticos e ranking automático.</p>
+    </header>
+
+    <section class="card" id="login">
+      <h2>Entrar / criar PIN</h2>
+      <label>Nome</label>
+      <select id="name"></select>
+      <label>PIN de 4 dígitos</label>
+      <input id="pin" placeholder="1234" inputmode="numeric" maxlength="4" />
+      <button onclick="login()">Entrar</button>
+      <p class="small">Na primeira entrada, o PIN fica associado ao teu nome.</p>
+    </section>
+
+    <section id="app" class="hidden">
+      <div class="top">
+        <strong id="who"></strong>
+        <button class="secondary" onclick="logout()">Sair</button>
+      </div>
+
+      <section class="card admin-only hidden">
+        <h2>Adicionar jogo</h2>
+        <div class="grid">
+          <input id="homeTeam" placeholder="Equipa casa" />
+          <input id="awayTeam" placeholder="Equipa fora" />
+          <input id="kickoff" type="datetime-local" />
+          <button onclick="addMatch()">Adicionar</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Jogos e apostas</h2>
+        <p class="small">Pontuação: resultado exato 5 · vencedor/empate 3 · golos certos 1+1. As apostas bloqueiam após a hora do jogo.</p>
+        <div id="matches"></div>
+      </section>
+
+      <section class="card">
+        <h2>Ranking</h2>
+        <ol id="ranking"></ol>
+      </section>
+
+      <section class="card">
+        <h2>Participantes</h2>
+        <div id="players"></div>
+      </section>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
