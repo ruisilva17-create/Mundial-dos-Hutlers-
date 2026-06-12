@@ -1,25 +1,16 @@
 # Mundial dos Hutlers
 
-Versão organizada por separadores:
+Versão com separadores, bandeiras e apostas ocultas até ao bloqueio do jogo.
 
-- Classificação
-- Jogos / Resultados
-- Grupos
-- Bónus
-- Admin
+Regras principais:
+- Antes do jogo começar: aparece apenas o contador de apostas.
+- Depois do jogo começar: todos conseguem ver as apostas de todos.
+- Resultado exato: 5 pontos.
+- Vencedor/empate certo: 3 pontos.
+- Grupos: 3 pontos por posição exata.
 
-Regras:
-- Resultado exato: 5 pontos
-- Vencedor/empate: 3 pontos
-- Grupos: 3 pontos por posição exata
-- Campeão: 10 pontos
-- Finalista vencido: 5 pontos
-- Melhor marcador: 5 pontos
-
-Inclui:
-- Apostas ocultas até ao bloqueio dos jogos
-- Contador de participantes que já apostaram
-- Limpar resultado
-- Bloqueio das apostas dos grupos às 12:00 de 13/06/2026
-- Apostas dos grupos visíveis depois do bloqueio
-- Bandeiras nas equipas quando disponíveis
+Para publicar:
+1. Substituir `index.html`, `app.js`, `styles.css` e `README.md` no GitHub.
+2. Fazer commit.
+3. Esperar o Vercel atualizar.
+4. Fazer Ctrl+F5 na app.

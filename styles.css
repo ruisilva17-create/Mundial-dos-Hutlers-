@@ -64,3 +64,32 @@
   .tabs{position:static}
   .tab{flex:1 1 45%;font-size:13px;padding:9px 8px}
 }
+
+/* Apostas visíveis após bloqueio */
+.predictions {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, .72);
+  color: #f8fafc;
+}
+.predictions b { color: #ffffff; }
+.predictions div {
+  padding: 6px 0;
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+.predictions div:first-of-type { border-top: 0; }
+.bet-count {
+  margin-top: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, .18);
+  color: #dcfce7;
+  border: 1px solid rgba(34, 197, 94, .35);
+}
+.bet-count b { color: #ffffff; }
+.bet-count span { color: #dcfce7; }

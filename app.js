@@ -12,8 +12,25 @@ function switchTab(tab){
 // Apostas dos grupos fecham em 13/06/2026 às 12:00, hora de Portugal continental.
 const GROUP_PREDICTIONS_DEADLINE = new Date('2026-06-13T12:00:00+01:00');
 const $ = id => document.getElementById(id);
-const flagMap = {Portugal:'🇵🇹',Brazil:'🇧🇷',Brasil:'🇧🇷',Argentina:'🇦🇷',Spain:'🇪🇸',Espanha:'🇪🇸',France:'🇫🇷',França:'🇫🇷',Germany:'🇩🇪',Alemanha:'🇩🇪',Italy:'🇮🇹',Itália:'🇮🇹',England:'🏴',Inglaterra:'🏴',Mexico:'🇲🇽',México:'🇲🇽','South Africa':'🇿🇦','África do Sul':'🇿🇦','South Korea':'🇰🇷','Coreia do Sul':'🇰🇷','Czech Republic':'🇨🇿','República Checa':'🇨🇿',Canada:'🇨🇦',Canadá:'🇨🇦','Bosnia & Herzegovina':'🇧🇦','Bósnia e Herzegovina':'🇧🇦',USA:'🇺🇸','United States':'🇺🇸','Estados Unidos':'🇺🇸',Uruguay:'🇺🇾',Uruguai:'🇺🇾',Colombia:'🇨🇴',Colômbia:'🇨🇴',Japan:'🇯🇵',Japão:'🇯🇵',Morocco:'🇲🇦',Marrocos:'🇲🇦',Croatia:'🇭🇷',Croácia:'🇭🇷',Belgium:'🇧🇪',Bélgica:'🇧🇪',Netherlands:'🇳🇱','Países Baixos':'🇳🇱',Switzerland:'🇨🇭',Suíça:'🇨🇭',Denmark:'🇩🇰',Dinamarca:'🇩🇰',Sweden:'🇸🇪',Suécia:'🇸🇪',Norway:'🇳🇴',Noruega:'🇳🇴',Poland:'🇵🇱',Polónia:'🇵🇱',Serbia:'🇷🇸',Sérvia:'🇷🇸',Senegal:'🇸🇳',Ghana:'🇬🇭',Nigeria:'🇳🇬',Nigéria:'🇳🇬',Egypt:'🇪🇬',Egito:'🇪🇬',Qatar:'🇶🇦',Australia:'🇦🇺',Austrália:'🇦🇺','Saudi Arabia':'🇸🇦','Arábia Saudita':'🇸🇦'};
-const f = team => `${flagMap[team]||''} ${team}`;
+const teamNameMap = {
+  USA:'Estados Unidos', 'United States':'Estados Unidos',
+  Mexico:'México', Canada:'Canadá',
+  Brazil:'Brasil', Argentina:'Argentina', Uruguay:'Uruguai', Paraguay:'Paraguai', Colombia:'Colômbia', Ecuador:'Equador',
+  Spain:'Espanha', France:'França', Germany:'Alemanha', Italy:'Itália', England:'Inglaterra', Croatia:'Croácia', Belgium:'Bélgica', Netherlands:'Países Baixos', Switzerland:'Suíça', Sweden:'Suécia', Norway:'Noruega', Scotland:'Escócia', Czechia:'Chéquia', 'Czech Republic':'Chéquia', Turkey:'Turquia', Ukraine:'Ucrânia', Austria:'Áustria',
+  Portugal:'Portugal',
+  Morocco:'Marrocos', Senegal:'Senegal', Ghana:'Gana', Egypt:'Egito', Algeria:'Argélia', Angola:'Angola', Cameroon:'Camarões', 'South Africa':'África do Sul', 'Ivory Coast':'Costa do Marfim', 'Côte d’Ivoire':'Costa do Marfim', 'DR Congo':'RD Congo',
+  Japan:'Japão', 'South Korea':'Coreia do Sul', Qatar:'Catar', Iran:'Irão', Iraq:'Iraque', 'Saudi Arabia':'Arábia Saudita', Uzbekistan:'Uzbequistão', Jordan:'Jordânia',
+  Australia:'Austrália', 'New Zealand':'Nova Zelândia',
+  Haiti:'Haiti', Panama:'Panamá', Honduras:'Honduras', 'Costa Rica':'Costa Rica', 'El Salvador':'El Salvador', Curaçao:'Curaçau', 'New Caledonia':'Nova Caledónia',
+  'Bosnia & Herzegovina':'Bósnia e Herzegovina', 'Bosnia and Herzegovina':'Bósnia e Herzegovina',
+  Tunisia:'Tunísia', 'Cape Verde':'Cabo Verde'
+};
+const flagMap = {
+  Portugal:'🇵🇹', Brasil:'🇧🇷', Argentina:'🇦🇷', Espanha:'🇪🇸', França:'🇫🇷', Alemanha:'🇩🇪', Itália:'🇮🇹', Inglaterra:'🏴', México:'🇲🇽', 'África do Sul':'🇿🇦', 'Coreia do Sul':'🇰🇷', Chéquia:'🇨🇿', Canadá:'🇨🇦', 'Bósnia e Herzegovina':'🇧🇦', 'Estados Unidos':'🇺🇸', Uruguai:'🇺🇾', Paraguai:'🇵🇾', Colômbia:'🇨🇴', Equador:'🇪🇨', Japão:'🇯🇵', Marrocos:'🇲🇦', Croácia:'🇭🇷', Bélgica:'🇧🇪', 'Países Baixos':'🇳🇱', Suíça:'🇨🇭', Dinamarca:'🇩🇰', Suécia:'🇸🇪', Noruega:'🇳🇴', Polónia:'🇵🇱', Sérvia:'🇷🇸', Senegal:'🇸🇳', Gana:'🇬🇭', Nigéria:'🇳🇬', Egito:'🇪🇬', Catar:'🇶🇦', Austrália:'🇦🇺', 'Arábia Saudita':'🇸🇦', Haiti:'🇭🇹', Escócia:'🏴', Turquia:'🇹🇷', Ucrânia:'🇺🇦', Áustria:'🇦🇹', Argélia:'🇩🇿', Angola:'🇦🇴', Camarões:'🇨🇲', 'Costa do Marfim':'🇨🇮', 'RD Congo':'🇨🇩', Irão:'🇮🇷', Iraque:'🇮🇶', Uzbequistão:'🇺🇿', Jordânia:'🇯🇴', 'Nova Zelândia':'🇳🇿', Panamá:'🇵🇦', Honduras:'🇭🇳', 'Costa Rica':'🇨🇷', 'El Salvador':'🇸🇻', Curaçau:'🇨🇼', 'Nova Caledónia':'🇳🇨', Tunísia:'🇹🇳', 'Cabo Verde':'🇨🇻'
+};
+const teamPt = team => teamNameMap[team] || team;
+const f = team => { const name = teamPt(team); return `${flagMap[name]||''} ${name}`.trim(); };
+
 function outcome(h,a){ if(h===null||a===null||h===undefined||a===undefined) return null; return h>a?'home':h<a?'away':'draw'; }
 function matchPoints(pred, match){ if(match.home_score===null||match.away_score===null||pred.home_prediction===null||pred.away_prediction===null) return 0; if(pred.home_prediction===match.home_score && pred.away_prediction===match.away_score) return 5; return outcome(pred.home_prediction,pred.away_prediction)===outcome(match.home_score,match.away_score)?3:0; }
 function groupPoints(gp, group){ if(!group.final_order || !gp.predicted_order) return 0; return gp.predicted_order.reduce((sum,t,i)=>sum+(group.final_order[i]===t?3:0),0); }
@@ -78,10 +95,10 @@ function renderMatches(){
   $('matches').innerHTML=state.matches.map(m=>{
     const pr=state.predictions.find(x=>x.player_id===state.player.id && x.match_id===m.id)||{};
     const locked=isMatchLocked(m);
-    const admin = state.player.is_admin ? `<div class="scoreline adminline"><label>Golos ${m.home_team}<input id="rh-${m.id}" type="number" value="${m.home_score??''}"></label><label>Golos ${m.away_team}<input id="ra-${m.id}" type="number" value="${m.away_score??''}"></label><button onclick="saveResult(${m.id})">Guardar resultado</button><button class="secondary" onclick="clearResult(${m.id})">Limpar resultado</button></div>` : '';
+    const admin = state.player.is_admin ? `<div class="scoreline adminline"><label>Golos ${f(m.home_team)}<input id="rh-${m.id}" type="number" value="${m.home_score??''}"></label><label>Golos ${f(m.away_team)}<input id="ra-${m.id}" type="number" value="${m.away_score??''}"></label><button onclick="saveResult(${m.id})">Guardar resultado</button><button class="secondary" onclick="clearResult(${m.id})">Limpar resultado</button></div>` : '';
     const betArea = locked
       ? `<div class="locked">Apostas bloqueadas</div><div class="small">A tua aposta: ${pr.id?`<b>${pr.home_prediction}-${pr.away_prediction}</b>`:'sem aposta'}</div>`
-      : `<div class="scoreline"><label>${m.home_team}<input id="ph-${m.id}" type="number" value="${pr.home_prediction??''}"></label><label>${m.away_team}<input id="pa-${m.id}" type="number" value="${pr.away_prediction??''}"></label><button onclick="savePrediction(${m.id})">Guardar aposta</button></div>`;
+      : `<div class="scoreline"><label>${f(m.home_team)}<input id="ph-${m.id}" type="number" value="${pr.home_prediction??''}"></label><label>${f(m.away_team)}<input id="pa-${m.id}" type="number" value="${pr.away_prediction??''}"></label><button onclick="savePrediction(${m.id})">Guardar aposta</button></div>`;
     return `<div class="match"><div class="teams">${f(m.home_team)} vs ${f(m.away_team)}</div><div class="small">${m.kickoff?new Date(m.kickoff).toLocaleString('pt-PT'):''}</div>${m.home_score!==null&&m.away_score!==null?`<div class="small"><b>Resultado:</b> ${m.home_score}-${m.away_score}</div>`:''}${betArea}${matchPredictionsHtml(m,locked)}${admin}</div>`;
   }).join('');
 }
