@@ -3,3 +3,5 @@
 .predictions{margin-top:10px;padding:10px;border-radius:12px;background:rgba(148,163,184,.12);font-size:14px;line-height:1.7}
 .locked{display:inline-block;margin-top:10px;padding:8px 12px;border-radius:10px;background:#475569;color:white;font-weight:700}
 .adminline{margin-top:12px;border-top:1px solid rgba(148,163,184,.25);padding-top:12px}
+
+.bet-count{margin-top:10px;padding:8px 10px;border-radius:10px;background:#eef2ff;font-size:14px}

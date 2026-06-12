@@ -19,3 +19,6 @@ PIN inicial de todos: `1234`.
 
 ## Privacidade das apostas
 As apostas dos outros participantes ficam ocultas até à hora de início do jogo. Quando o jogo começa, as apostas bloqueiam e passam a ficar visíveis para todos.
+
+
+Atualização: antes do início do jogo, a app mostra quantos participantes já apostaram (ex: 7/9), mas mantém os prognósticos escondidos até o jogo bloquear.

@@ -30,9 +30,10 @@ async function saveGroupResult(groupId){ const order=[0,1,2,3].map(i=>$(`gr-${gr
 function isMatchLocked(m){ return !!m.kickoff && new Date(m.kickoff).getTime() <= Date.now(); }
 function matchPredictionsHtml(m, locked){
   const preds = state.predictions.filter(x=>x.match_id===m.id);
-  if(!locked) return '<p class="hint">As apostas dos outros ficam escondidas até o jogo começar.</p>';
+  const totalPlayers = state.players.length || 9;
+  if(!locked) return `<div class="bet-count"><b>${preds.length}/${totalPlayers}</b> participantes já apostaram</div><p class="hint">As apostas dos outros ficam escondidas até o jogo começar.</p>`;
   if(!preds.length) return '<p class="hint">Apostas: ainda sem apostas.</p>';
-  return `<div class="predictions"><b>Apostas:</b>${preds.map(pr=>{
+  return `<div class="bet-count"><b>${preds.length}/${totalPlayers}</b> participantes apostaram</div><div class="predictions"><b>Apostas:</b>${preds.map(pr=>{
     const player = state.players.find(p=>p.id===pr.player_id);
     const pts = matchPoints(pr,m);
     return `<div>${player?.name||'Jogador'}: <b>${pr.home_prediction}-${pr.away_prediction}</b>${(m.home_score!==null&&m.away_score!==null)?` · ${pts} pts`:''}</div>`;
