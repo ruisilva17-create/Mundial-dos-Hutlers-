@@ -214,8 +214,13 @@ async function copyMissingBets(matchId){
 
 function missingBetsSummary(){
   const now = Date.now();
+  const next24h = now + (24 * 60 * 60 * 1000);
   return state.matches
-    .filter(m=>!m.kickoff || new Date(m.kickoff).getTime() > now)
+    .filter(m=>{
+      if(!m.kickoff) return false;
+      const kickoff = new Date(m.kickoff).getTime();
+      return kickoff > now && kickoff <= next24h;
+    })
     .map(m=>({ match:m, missing: missingPlayersForMatch(m.id) }))
     .filter(x=>x.missing.length)
     .sort((a,b)=>new Date(a.match.kickoff || 0) - new Date(b.match.kickoff || 0));
@@ -223,20 +228,20 @@ function missingBetsSummary(){
 function missingBetsSummaryHtml(){
   const items = missingBetsSummary();
   if(!items.length){
-    return `<div class="summary-card"><h3>📢 Faltas de apostas</h3><p class="hint">Todos já apostaram nos jogos ainda em aberto.</p></div>`;
+    return `<div class="summary-card"><h3>📢 Faltas nas próximas 24h</h3><p class="hint">Todos já apostaram nos jogos das próximas 24 horas, ou não há jogos nesse período.</p></div>`;
   }
-  const preview = items.slice(0,5).map(x=>`<div class="missing-line"><b>${f(x.match.home_team)} vs ${f(x.match.away_team)}</b><br><span>Faltam: ${x.missing.join(', ')}</span></div>`).join('');
-  const extra = items.length > 5 ? `<p class="hint">+ ${items.length - 5} jogo(s) com faltas.</p>` : '';
-  return `<div class="summary-card"><h3>📢 Faltas de apostas</h3>${preview}${extra}<button class="secondary small-btn" onclick="copyMissingBetsSummary()">Copiar resumo para WhatsApp</button></div>`;
+  const preview = items.slice(0,5).map(x=>`<div class="missing-line"><b>${f(x.match.home_team)} vs ${f(x.match.away_team)}</b><br><span>${new Date(x.match.kickoff).toLocaleString('pt-PT', { dateStyle:'short', timeStyle:'short' })}</span><br><span>Faltam: ${x.missing.join(', ')}</span></div>`).join('');
+  const extra = items.length > 5 ? `<p class="hint">+ ${items.length - 5} jogo(s) com faltas nas próximas 24h.</p>` : '';
+  return `<div class="summary-card"><h3>📢 Faltas nas próximas 24h</h3>${preview}${extra}<button class="secondary small-btn" onclick="copyMissingBetsSummary()">Copiar resumo para WhatsApp</button></div>`;
 }
 async function copyMissingBetsSummary(){
   const items = missingBetsSummary();
   const text = items.length
-    ? `Mundial dos Hutlers ⚽\n\nFaltam apostas:\n\n${items.map(x=>`${f(x.match.home_team)} vs ${f(x.match.away_team)}\n${x.missing.map(n=>`- ${n}`).join('\n')}`).join('\n\n')}`
-    : 'Mundial dos Hutlers ⚽\nTodos já apostaram nos jogos em aberto.';
+    ? `Mundial dos Hutlers ⚽\n\nFaltam apostas nos jogos das próximas 24h:\n\n${items.map(x=>`${f(x.match.home_team)} vs ${f(x.match.away_team)}\n${new Date(x.match.kickoff).toLocaleString('pt-PT', { dateStyle:'short', timeStyle:'short' })}\n${x.missing.map(n=>`- ${n}`).join('\n')}`).join('\n\n')}`
+    : 'Mundial dos Hutlers ⚽\nTodos já apostaram nos jogos das próximas 24 horas, ou não há jogos nesse período.';
   try{
     await navigator.clipboard.writeText(text);
-    alert('Resumo copiado. Cola no WhatsApp.');
+    alert('Resumo das próximas 24h copiado. Cola no WhatsApp.');
   }catch(e){
     prompt('Copia este texto para o WhatsApp:', text);
   }
