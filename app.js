@@ -13,38 +13,91 @@ function switchTab(tab){
 const GROUP_PREDICTIONS_DEADLINE = new Date('2026-06-13T12:00:00+01:00');
 const $ = id => document.getElementById(id);
 const teamNameMap = {
-  USA:'Estados Unidos', US:'Estados Unidos', 'United States':'Estados Unidos',
-  Mexico:'México', Canada:'Canadá',
-  Brazil:'Brasil', Argentina:'Argentina', Uruguay:'Uruguai', Paraguay:'Paraguai', Colombia:'Colômbia', Ecuador:'Equador',
-  Spain:'Espanha', France:'França', Germany:'Alemanha', Italy:'Itália', England:'Inglaterra', Croatia:'Croácia', Belgium:'Bélgica', Netherlands:'Países Baixos', Switzerland:'Suíça', Sweden:'Suécia', Norway:'Noruega', Scotland:'Escócia', Czechia:'Chéquia', 'Czech Republic':'Chéquia', Turkey:'Turquia', Ukraine:'Ucrânia', Austria:'Áustria',
-  Portugal:'Portugal',
-  Morocco:'Marrocos', Senegal:'Senegal', Ghana:'Gana', Egypt:'Egito', Algeria:'Argélia', Angola:'Angola', Cameroon:'Camarões', 'South Africa':'África do Sul', 'Ivory Coast':'Costa do Marfim', 'Côte d’Ivoire':'Costa do Marfim', 'DR Congo':'RD Congo',
-  Japan:'Japão', 'South Korea':'Coreia do Sul', Qatar:'Catar', Iran:'Irão', Iraq:'Iraque', 'Saudi Arabia':'Arábia Saudita', Uzbekistan:'Uzbequistão', Jordan:'Jordânia',
-  Australia:'Austrália', 'New Zealand':'Nova Zelândia',
-  Haiti:'Haiti', Panama:'Panamá', Honduras:'Honduras', 'Costa Rica':'Costa Rica', 'El Salvador':'El Salvador', Curaçao:'Curaçau', 'New Caledonia':'Nova Caledónia',
-  'Bosnia & Herzegovina':'Bósnia e Herzegovina', 'Bosnia and Herzegovina':'Bósnia e Herzegovina',
-  Tunisia:'Tunísia', 'Cape Verde':'Cabo Verde'
+  USA:'Estados Unidos', US:'Estados Unidos', 'United States':'Estados Unidos', 'Estados Unidos':'Estados Unidos',
+  Mexico:'México', MX:'México', México:'México',
+  Canada:'Canadá', CA:'Canadá', Canadá:'Canadá',
+  Brazil:'Brasil', BR:'Brasil', Brasil:'Brasil',
+  Argentina:'Argentina', AR:'Argentina',
+  Uruguay:'Uruguai', UY:'Uruguai', Uruguai:'Uruguai',
+  Paraguay:'Paraguai', PY:'Paraguai', Paraguai:'Paraguai',
+  Colombia:'Colômbia', CO:'Colômbia', Colômbia:'Colômbia',
+  Ecuador:'Equador', EC:'Equador', Equador:'Equador',
+  Spain:'Espanha', ES:'Espanha', Espanha:'Espanha',
+  France:'França', FR:'França', França:'França',
+  Germany:'Alemanha', DE:'Alemanha', Alemanha:'Alemanha',
+  Italy:'Itália', IT:'Itália', Itália:'Itália',
+  England:'Inglaterra', GB:'Inglaterra', Inglaterra:'Inglaterra',
+  Croatia:'Croácia', HR:'Croácia', Croácia:'Croácia',
+  Belgium:'Bélgica', BE:'Bélgica', Bélgica:'Bélgica',
+  Netherlands:'Países Baixos', NL:'Países Baixos', Holanda:'Países Baixos', 'Países Baixos':'Países Baixos',
+  Switzerland:'Suíça', CH:'Suíça', Suíça:'Suíça',
+  Sweden:'Suécia', SE:'Suécia', Suécia:'Suécia',
+  Norway:'Noruega', NO:'Noruega', Noruega:'Noruega',
+  Scotland:'Escócia', Escócia:'Escócia',
+  Czechia:'Chéquia', CZ:'Chéquia', 'Czech Republic':'Chéquia', Chéquia:'Chéquia',
+  Turkey:'Turquia', TR:'Turquia', Turquia:'Turquia',
+  Ukraine:'Ucrânia', UA:'Ucrânia', Ucrânia:'Ucrânia',
+  Austria:'Áustria', AT:'Áustria', Áustria:'Áustria',
+  Portugal:'Portugal', PT:'Portugal',
+  Morocco:'Marrocos', MA:'Marrocos', Marrocos:'Marrocos',
+  Senegal:'Senegal', SN:'Senegal',
+  Ghana:'Gana', GH:'Gana', Gana:'Gana',
+  Egypt:'Egito', EG:'Egito', Egito:'Egito',
+  Algeria:'Argélia', DZ:'Argélia', Argélia:'Argélia',
+  Angola:'Angola', AO:'Angola',
+  Cameroon:'Camarões', CM:'Camarões', Camarões:'Camarões',
+  'South Africa':'África do Sul', ZA:'África do Sul', 'África do Sul':'África do Sul',
+  'Ivory Coast':'Costa do Marfim', 'Côte d’Ivoire':'Costa do Marfim', CI:'Costa do Marfim', 'Costa do Marfim':'Costa do Marfim',
+  'DR Congo':'RD Congo', CD:'RD Congo', 'RD Congo':'RD Congo',
+  Japan:'Japão', JP:'Japão', Japão:'Japão',
+  'South Korea':'Coreia do Sul', KR:'Coreia do Sul', 'Coreia do Sul':'Coreia do Sul',
+  Qatar:'Catar', QA:'Catar', Catar:'Catar',
+  Iran:'Irão', IR:'Irão', Irão:'Irão',
+  Iraq:'Iraque', IQ:'Iraque', Iraque:'Iraque',
+  'Saudi Arabia':'Arábia Saudita', SA:'Arábia Saudita', 'Arábia Saudita':'Arábia Saudita',
+  Uzbekistan:'Uzbequistão', UZ:'Uzbequistão', Uzbequistão:'Uzbequistão',
+  Jordan:'Jordânia', JO:'Jordânia', Jordânia:'Jordânia',
+  Australia:'Austrália', AU:'Austrália', Austrália:'Austrália',
+  'New Zealand':'Nova Zelândia', NZ:'Nova Zelândia', 'Nova Zelândia':'Nova Zelândia',
+  Haiti:'Haiti', HT:'Haiti',
+  Panama:'Panamá', PA:'Panamá', Panamá:'Panamá',
+  Honduras:'Honduras', HN:'Honduras',
+  'Costa Rica':'Costa Rica', CR:'Costa Rica',
+  'El Salvador':'El Salvador', SV:'El Salvador',
+  Curaçao:'Curaçau', Curaçau:'Curaçau', CW:'Curaçau',
+  'New Caledonia':'Nova Caledónia', NC:'Nova Caledónia', 'Nova Caledónia':'Nova Caledónia',
+  'Bosnia & Herzegovina':'Bósnia e Herzegovina', 'Bosnia and Herzegovina':'Bósnia e Herzegovina', BA:'Bósnia e Herzegovina', 'Bósnia e Herzegovina':'Bósnia e Herzegovina',
+  Tunisia:'Tunísia', TN:'Tunísia', Tunísia:'Tunísia',
+  'Cape Verde':'Cabo Verde', CV:'Cabo Verde', 'Cabo Verde':'Cabo Verde'
 };
-const flagMap = {
-  Portugal:'🇵🇹', Brasil:'🇧🇷', Argentina:'🇦🇷', Espanha:'🇪🇸', França:'🇫🇷', Alemanha:'🇩🇪', Itália:'🇮🇹', Inglaterra:'🏴', México:'🇲🇽', 'África do Sul':'🇿🇦', 'Coreia do Sul':'🇰🇷', Chéquia:'🇨🇿', Canadá:'🇨🇦', 'Bósnia e Herzegovina':'🇧🇦', 'Estados Unidos':'🇺🇸', Uruguai:'🇺🇾', Paraguai:'🇵🇾', Colômbia:'🇨🇴', Equador:'🇪🇨', Japão:'🇯🇵', Marrocos:'🇲🇦', Croácia:'🇭🇷', Bélgica:'🇧🇪', 'Países Baixos':'🇳🇱', Suíça:'🇨🇭', Dinamarca:'🇩🇰', Suécia:'🇸🇪', Noruega:'🇳🇴', Polónia:'🇵🇱', Sérvia:'🇷🇸', Senegal:'🇸🇳', Gana:'🇬🇭', Nigéria:'🇳🇬', Egito:'🇪🇬', Catar:'🇶🇦', Austrália:'🇦🇺', 'Arábia Saudita':'🇸🇦', Haiti:'🇭🇹', Escócia:'🏴', Turquia:'🇹🇷', Ucrânia:'🇺🇦', Áustria:'🇦🇹', Argélia:'🇩🇿', Angola:'🇦🇴', Camarões:'🇨🇲', 'Costa do Marfim':'🇨🇮', 'RD Congo':'🇨🇩', Irão:'🇮🇷', Iraque:'🇮🇶', Uzbequistão:'🇺🇿', Jordânia:'🇯🇴', 'Nova Zelândia':'🇳🇿', Panamá:'🇵🇦', Honduras:'🇭🇳', 'Costa Rica':'🇨🇷', 'El Salvador':'🇸🇻', Curaçau:'🇨🇼', 'Nova Caledónia':'🇳🇨', Tunísia:'🇹🇳', 'Cabo Verde':'🇨🇻'
+
+// Usamos imagens do FlagCDN em vez de emoji, porque no Windows os emojis de bandeira aparecem como CA/US/KR.
+const flagCodeMap = {
+  'Portugal':'pt', 'Brasil':'br', 'Argentina':'ar', 'Espanha':'es', 'França':'fr', 'Alemanha':'de', 'Itália':'it', 'Inglaterra':'gb-eng',
+  'México':'mx', 'África do Sul':'za', 'Coreia do Sul':'kr', 'Chéquia':'cz', 'Canadá':'ca', 'Bósnia e Herzegovina':'ba',
+  'Estados Unidos':'us', 'Uruguai':'uy', 'Paraguai':'py', 'Colômbia':'co', 'Equador':'ec', 'Japão':'jp', 'Marrocos':'ma',
+  'Croácia':'hr', 'Bélgica':'be', 'Países Baixos':'nl', 'Suíça':'ch', 'Dinamarca':'dk', 'Suécia':'se', 'Noruega':'no',
+  'Polónia':'pl', 'Sérvia':'rs', 'Senegal':'sn', 'Gana':'gh', 'Nigéria':'ng', 'Egito':'eg', 'Catar':'qa', 'Austrália':'au',
+  'Arábia Saudita':'sa', 'Haiti':'ht', 'Escócia':'gb-sct', 'Turquia':'tr', 'Ucrânia':'ua', 'Áustria':'at', 'Argélia':'dz',
+  'Angola':'ao', 'Camarões':'cm', 'Costa do Marfim':'ci', 'RD Congo':'cd', 'Irão':'ir', 'Iraque':'iq', 'Uzbequistão':'uz',
+  'Jordânia':'jo', 'Nova Zelândia':'nz', 'Panamá':'pa', 'Honduras':'hn', 'Costa Rica':'cr', 'El Salvador':'sv', 'Curaçau':'cw',
+  'Nova Caledónia':'nc', 'Tunísia':'tn', 'Cabo Verde':'cv'
 };
+
 function cleanTeamName(team){
-  return String(team || '')
-    .trim()
-    // Remove códigos ISO/FIFA que vieram da base de dados, ex: "CA Canadá", "US Estados Unidos", "KR Coreia do Sul".
-    .replace(/^[A-Z]{2,3}\s+/, '')
-    .trim();
+  let value = String(team || '').trim();
+  // Remove prefixos que já aparecem no site, por exemplo: "CA Canadá", "US Estados Unidos", "KR Coreia do Sul".
+  value = value.replace(/^[A-Z]{2}\s+/, '').trim();
+  return teamNameMap[value] || value;
 }
-
-function teamPt(team){
-  const cleaned = cleanTeamName(team);
-  return teamNameMap[cleaned] || cleaned;
-}
-
-function f(team){
+const teamPt = cleanTeamName;
+function flagImg(team){
   const name = teamPt(team);
-  return `${flagMap[name] || '🏳️'} ${name}`;
+  const code = flagCodeMap[name];
+  if(!code) return '';
+  return `<img src="https://flagcdn.com/24x18/${code}.png" alt="" style="width:24px;height:18px;object-fit:cover;border-radius:3px;vertical-align:-3px;margin-right:6px;box-shadow:0 0 0 1px rgba(255,255,255,.15)">`;
 }
+const f = team => `${flagImg(team)}${teamPt(team)}`;
 
 function outcome(h,a){ if(h===null||a===null||h===undefined||a===undefined) return null; return h>a?'home':h<a?'away':'draw'; }
 function matchPoints(pred, match){ if(match.home_score===null||match.away_score===null||pred.home_prediction===null||pred.away_prediction===null) return 0; if(pred.home_prediction===match.home_score && pred.away_prediction===match.away_score) return 5; return outcome(pred.home_prediction,pred.away_prediction)===outcome(match.home_score,match.away_score)?3:0; }
