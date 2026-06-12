@@ -44,7 +44,7 @@ function renderMatches(){
   $('matches').innerHTML=state.matches.map(m=>{
     const pr=state.predictions.find(x=>x.player_id===state.player.id && x.match_id===m.id)||{};
     const locked=isMatchLocked(m);
-    const admin = state.player.is_admin ? `<div class="scoreline adminline"><label>Golos ${m.home_team}<input id="rh-${m.id}" type="number" value="${m.home_score??''}"></label><label>Golos ${m.away_team}<input id="ra-${m.id}" type="number" value="${m.away_score??''}"></label><button onclick="saveResult(${m.id})">Guardar resultado</button></div>` : '';
+    const admin = state.player.is_admin ? `<div class="scoreline adminline"><label>Golos ${m.home_team}<input id="rh-${m.id}" type="number" value="${m.home_score??''}"></label><label>Golos ${m.away_team}<input id="ra-${m.id}" type="number" value="${m.away_score??''}"></label><button onclick="saveResult(${m.id})">Guardar resultado</button><button class="secondary" onclick="clearResult(${m.id})">Limpar resultado</button></div>` : '';
     const betArea = locked
       ? `<div class="locked">Apostas bloqueadas</div><div class="small">A tua aposta: ${pr.id?`<b>${pr.home_prediction}-${pr.away_prediction}</b>`:'sem aposta'}</div>`
       : `<div class="scoreline"><label>${m.home_team}<input id="ph-${m.id}" type="number" value="${pr.home_prediction??''}"></label><label>${m.away_team}<input id="pa-${m.id}" type="number" value="${pr.away_prediction??''}"></label><button onclick="savePrediction(${m.id})">Guardar aposta</button></div>`;
@@ -52,6 +52,22 @@ function renderMatches(){
   }).join('');
 }
 async function savePrediction(matchId){ const m=state.matches.find(x=>x.id===matchId); if(m && isMatchLocked(m)){ alert('Este jogo já começou. As apostas estão bloqueadas.'); return; } const h=$(`ph-${matchId}`).value, a=$(`pa-${matchId}`).value; if(h===''||a===''){ alert('Preenche os dois resultados.'); return; } await sb.from('predictions').upsert({player_id:state.player.id, match_id:matchId, home_prediction:Number(h), away_prediction:Number(a)},{onConflict:'player_id,match_id'}); await loadAll(); alert('Aposta guardada.'); }
-async function saveResult(matchId){ await sb.from('matches').update({home_score:Number($(`rh-${matchId}`).value), away_score:Number($(`ra-${matchId}`).value)}).eq('id',matchId); await loadAll(); alert('Resultado guardado.'); }
+async function saveResult(matchId){
+  const h = $(`rh-${matchId}`).value;
+  const a = $(`ra-${matchId}`).value;
+  if(h==='' || a===''){
+    alert('Preenche os dois golos ou usa Limpar resultado.');
+    return;
+  }
+  await sb.from('matches').update({home_score:Number(h), away_score:Number(a)}).eq('id',matchId);
+  await loadAll();
+  alert('Resultado guardado.');
+}
+async function clearResult(matchId){
+  if(!confirm('Queres mesmo limpar o resultado deste jogo?')) return;
+  await sb.from('matches').update({home_score:null, away_score:null}).eq('id',matchId);
+  await loadAll();
+  alert('Resultado limpo.');
+}
 $('loginBtn').onclick=login; $('logoutBtn').onclick=()=>{localStorage.removeItem('playerId'); location.reload();}; $('saveBonusBtn').onclick=saveBonus; $('saveBonusResultsBtn').onclick=saveBonusResults;
 loadAll().then(()=>{ const id=localStorage.getItem('playerId'); if(id){ const p=state.players.find(x=>String(x.id)===id); if(p){ state.player=p; $('login').classList.add('hidden'); $('app').classList.remove('hidden'); renderApp(); } } });

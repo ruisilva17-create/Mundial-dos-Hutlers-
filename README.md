@@ -22,3 +22,6 @@ As apostas dos outros participantes ficam ocultas até à hora de início do jog
 
 
 Atualização: antes do início do jogo, a app mostra quantos participantes já apostaram (ex: 7/9), mas mantém os prognósticos escondidos até o jogo bloquear.
+
+
+Atualização: admins Rui e Walter podem agora usar o botão Limpar resultado em cada jogo.
