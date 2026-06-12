@@ -82,7 +82,10 @@ function renderRanking(){
   }).sort((a,b)=>b.pts-a.pts || a.name.localeCompare(b.name));
   const me = rows.find(r=>r.id===state.player.id);
   const summary = me ? `<div class="summary-card"><h3>O teu resumo</h3><div class="summary-grid"><div><b>${me.bd.matchBets}/${me.bd.totalMatches}</b><span>jogos apostados</span></div><div><b>${me.bd.missingOpenCount}</b><span>jogos por apostar</span></div><div><b>${me.bd.matchPts}</b><span>pts jogos</span></div><div><b>${me.bd.groupPts}</b><span>pts grupos</span></div><div><b>${me.bd.bonusPts}</b><span>pts bónus</span></div><div><b>${me.pts}</b><span>total</span></div></div>${me.bd.missingOpenCount ? `<p class="hint"><b>Próximos por apostar:</b> ${me.bd.missingOpen.slice(0,5).map(m=>`${f(m.home_team)} vs ${f(m.away_team)}`).join(' · ')}${me.bd.missingOpenCount>5?' · ...':''}</p>` : '<p class="hint">Não tens jogos em aberto por apostar.</p>'}</div>` : '';
-  $('ranking').innerHTML=summary + `<table class="table"><tr><th>#</th><th>Nome</th><th>Jogos</th><th>Grupos</th><th>Bónus</th><th>Pontos</th></tr>${rows.map((r,i)=>`<tr><td>${i+1}</td><td>${r.name}</td><td>${r.bd.matchPts}</td><td>${r.bd.groupPts}</td><td>${r.bd.bonusPts}</td><td><b>${r.pts}</b></td></tr>`).join('')}</table>`;
+  const medal = i => i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : `${i+1}.º`;
+  const top3 = rows.slice(0,3).map((r,i)=>`<div class="podium-card podium-${i+1}"><div class="podium-medal">${medal(i)}</div><div><b>${r.name}</b><span>${r.pts} pts</span></div></div>`).join('');
+  const podium = rows.length ? `<div class="podium">${top3}</div>` : '';
+  $('ranking').innerHTML=summary + podium + `<table class="table"><tr><th>#</th><th>Nome</th><th>Jogos</th><th>Grupos</th><th>Bónus</th><th>Pontos</th></tr>${rows.map((r,i)=>`<tr class="${i<3?'top-row top-'+(i+1):''}"><td>${medal(i)}</td><td>${r.name}</td><td>${r.bd.matchPts}</td><td>${r.bd.groupPts}</td><td>${r.bd.bonusPts}</td><td><b>${r.pts}</b></td></tr>`).join('')}</table>`;
 }
 function renderBonus(){ const bp=state.bonusPreds.find(x=>x.player_id===state.player.id)||{}; $('championInput').value=bp.champion||''; $('runnerInput').value=bp.runner_up||''; $('scorerInput').value=bp.top_scorer||''; if(state.player.is_admin){ $('realChampion').value=state.bonusResults.champion||''; $('realRunner').value=state.bonusResults.runner_up||''; $('realScorer').value=state.bonusResults.top_scorer||''; } }
 async function saveBonus(){
@@ -131,7 +134,7 @@ function matchPredictionsHtml(m, locked){
   const playerIdsWithBet = new Set(preds.map(p=>p.player_id));
   const missingPlayers = state.players.filter(p=>!playerIdsWithBet.has(p.id)).map(p=>p.name);
   const missingHtml = missingPlayers.length
-    ? `<p class="hint"><b>Faltam apostar:</b> ${missingPlayers.join(', ')}</p>`
+    ? `<p class="hint"><b>Faltam apostar:</b> ${missingPlayers.join(', ')}</p><button class="secondary small-btn" onclick="copyMissingBets(${m.id})">Copiar faltas para WhatsApp</button>`
     : `<p class="hint">Todos os participantes já apostaram.</p>`;
   if(!locked) return `<div class="bet-count"><b>${preds.length}/${totalPlayers}</b><span>participantes já apostaram</span></div>${missingHtml}<p class="hint">As apostas dos outros ficam escondidas até o jogo começar.</p>`;
   if(!preds.length) return '<p class="hint">Apostas: ainda sem apostas.</p>';
@@ -140,6 +143,25 @@ function matchPredictionsHtml(m, locked){
     const pts = matchPoints(pr,m);
     return `<div>${player?.name||'Jogador'}: <b>${pr.home_prediction}-${pr.away_prediction}</b>${(m.home_score!==null&&m.away_score!==null)?` · ${pts} pts`:''}</div>`;
   }).join('')}</div>`;
+}
+function missingPlayersForMatch(matchId){
+  const preds = state.predictions.filter(x=>x.match_id===matchId);
+  const playerIdsWithBet = new Set(preds.map(p=>p.player_id));
+  return state.players.filter(p=>!playerIdsWithBet.has(p.id)).map(p=>p.name);
+}
+async function copyMissingBets(matchId){
+  const match = state.matches.find(m=>m.id===matchId);
+  const missing = missingPlayersForMatch(matchId);
+  const title = match ? `${f(match.home_team)} vs ${f(match.away_team)}` : 'este jogo';
+  const text = missing.length
+    ? `Mundial dos Hutlers ⚽\nFaltam apostar no jogo ${title}:\n${missing.map(n=>`- ${n}`).join('\n')}`
+    : `Mundial dos Hutlers ⚽\nTodos já apostaram no jogo ${title}.`;
+  try{
+    await navigator.clipboard.writeText(text);
+    alert('Texto copiado. Cola no WhatsApp.');
+  }catch(e){
+    prompt('Copia este texto para o WhatsApp:', text);
+  }
 }
 function renderMatches(){
   if(!state.matches.length){ $('matches').innerHTML='<p class="hint">Ainda não há jogos.</p>'; return; }
