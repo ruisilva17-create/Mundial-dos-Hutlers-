@@ -13,7 +13,7 @@ function switchTab(tab){
 const GROUP_PREDICTIONS_DEADLINE = new Date('2026-06-13T12:00:00+01:00');
 const $ = id => document.getElementById(id);
 const teamNameMap = {
-  USA:'Estados Unidos', 'United States':'Estados Unidos',
+  USA:'Estados Unidos', US:'Estados Unidos', 'United States':'Estados Unidos',
   Mexico:'México', Canada:'Canadá',
   Brazil:'Brasil', Argentina:'Argentina', Uruguay:'Uruguai', Paraguay:'Paraguai', Colombia:'Colômbia', Ecuador:'Equador',
   Spain:'Espanha', France:'França', Germany:'Alemanha', Italy:'Itália', England:'Inglaterra', Croatia:'Croácia', Belgium:'Bélgica', Netherlands:'Países Baixos', Switzerland:'Suíça', Sweden:'Suécia', Norway:'Noruega', Scotland:'Escócia', Czechia:'Chéquia', 'Czech Republic':'Chéquia', Turkey:'Turquia', Ukraine:'Ucrânia', Austria:'Áustria',
@@ -30,20 +30,21 @@ const flagMap = {
 };
 function cleanTeamName(team){
   return String(team || '')
-    // Remove códigos ISO que vieram antes do nome, ex: "CA Canadá", "US Estados Unidos", "KR Coreia do Sul"
+    .trim()
+    // Remove códigos ISO/FIFA que vieram da base de dados, ex: "CA Canadá", "US Estados Unidos", "KR Coreia do Sul".
     .replace(/^[A-Z]{2,3}\s+/, '')
     .trim();
 }
 
-const teamPt = team => {
+function teamPt(team){
   const cleaned = cleanTeamName(team);
   return teamNameMap[cleaned] || cleaned;
-};
+}
 
-const f = team => {
+function f(team){
   const name = teamPt(team);
-  return `${flagMap[name] || '🏳️'} ${name}`.trim();
-};
+  return `${flagMap[name] || '🏳️'} ${name}`;
+}
 
 function outcome(h,a){ if(h===null||a===null||h===undefined||a===undefined) return null; return h>a?'home':h<a?'away':'draw'; }
 function matchPoints(pred, match){ if(match.home_score===null||match.away_score===null||pred.home_prediction===null||pred.away_prediction===null) return 0; if(pred.home_prediction===match.home_score && pred.away_prediction===match.away_score) return 5; return outcome(pred.home_prediction,pred.away_prediction)===outcome(match.home_score,match.away_score)?3:0; }
