@@ -65,6 +65,10 @@ function injectBetterPredictionStyles(){
     .prediction-meta{font-size:.82rem;opacity:.85;margin-top:3px}
     .matches-section{margin-top:18px}
     .matches-section-title{margin:18px 0 10px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12)}
+    .match-subtabs{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 18px}
+    .match-subtab{padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);color:inherit;font-weight:800;cursor:pointer}
+    .match-subtab.active{background:#2563eb;border-color:#60a5fa}
+    .match-panel.hidden{display:none}
     .match-prediction-table{min-width:420px}
     .match-prediction-table td,.match-prediction-table th{padding:8px 10px}
     .player-group-card{border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px;margin:12px 0;background:rgba(255,255,255,.05)}
@@ -158,9 +162,45 @@ function renderRanking(){
   const mvp = mvpDaJornadaHtml();
   $('ranking').innerHTML=summary + mvp + podium + `<table class="table"><tr><th>#</th><th>Nome</th><th>Jogos</th><th>Grupos</th><th>Bónus</th><th>Pontos</th></tr>${rows.map((r,i)=>`<tr class="${i<3?'top-row top-'+(i+1):''}"><td>${medal(i)}</td><td>${r.name}</td><td>${r.bd.matchPts}</td><td>${r.bd.groupPts}</td><td>${r.bd.bonusPts}</td><td><b>${r.pts}</b></td></tr>`).join('')}</table>`;
 }
-function renderBonus(){ const bp=state.bonusPreds.find(x=>x.player_id===state.player.id)||{}; $('championInput').value=bp.champion||''; $('runnerInput').value=bp.runner_up||''; $('scorerInput').value=bp.top_scorer||''; if(state.player.is_admin){ $('realChampion').value=state.bonusResults.champion||''; $('realRunner').value=state.bonusResults.runner_up||''; $('realScorer').value=state.bonusResults.top_scorer||''; } }
+function renderBonus(){
+  const bp=state.bonusPreds.find(x=>x.player_id===state.player.id)||{};
+  const locked = bonusAreLocked();
+  const deadlineText = BONUS_PREDICTIONS_DEADLINE.toLocaleString('pt-PT', { dateStyle:'short', timeStyle:'short' });
+
+  $('championInput').value=bp.champion||'';
+  $('runnerInput').value=bp.runner_up||'';
+  $('scorerInput').value=bp.top_scorer||'';
+
+  ['championInput','runnerInput','scorerInput'].forEach(id=>{
+    if($(id)) $(id).disabled = locked;
+  });
+
+  if($('saveBonusBtn')){
+    $('saveBonusBtn').disabled = locked;
+    $('saveBonusBtn').textContent = locked ? 'Bónus bloqueados' : 'Guardar bónus';
+  }
+
+  let note = document.getElementById('bonus-lock-note');
+  if(!note && $('championInput')){
+    note = document.createElement('p');
+    note.id = 'bonus-lock-note';
+    $('championInput').parentElement?.parentElement?.before(note);
+  }
+  if(note){
+    note.className = locked ? 'locked-note' : 'open-note';
+    note.textContent = locked
+      ? `🔒 Apostas bónus bloqueadas desde ${deadlineText}.`
+      : `⏳ Podes alterar as apostas bónus até ${deadlineText}.`;
+  }
+
+  if(state.player.is_admin){
+    $('realChampion').value=state.bonusResults.champion||'';
+    $('realRunner').value=state.bonusResults.runner_up||'';
+    $('realScorer').value=state.bonusResults.top_scorer||'';
+  }
+}
 async function saveBonus(){
-  if(Date.now() >= BONUS_PREDICTIONS_DEADLINE.getTime()){
+  if(bonusAreLocked()){
     alert('As apostas bónus já estão bloqueadas.');
     return;
   }
@@ -170,6 +210,7 @@ async function saveBonus(){
 }
 async function saveBonusResults(){ await sb.from('bonus_results').upsert({id:1, champion:$('realChampion').value, runner_up:$('realRunner').value, top_scorer:$('realScorer').value, updated_at:new Date().toISOString()}); await loadAll(); alert('Resultados bónus guardados.'); }
 function groupsAreLocked(){ return Date.now() >= GROUP_PREDICTIONS_DEADLINE.getTime(); }
+function bonusAreLocked(){ return Date.now() >= BONUS_PREDICTIONS_DEADLINE.getTime(); }
 function orderSelect(id, teams, selected, disabled=false){ return `<select id="${id}" ${disabled?'disabled':''}>${teams.map(t=>`<option value="${t}" ${t===selected?'selected':''}>${f(t)}</option>`).join('')}</select>`; }
 function renderGroups(){
   if(!state.groups.length){ $('groups').innerHTML='<p class="hint">Ainda não há grupos criados.</p>'; $('groupResults').innerHTML=''; return; }
@@ -394,21 +435,34 @@ function renderMatchList(matches){
   }).join('');
 }
 
+function matchHasStartedOrFinished(m){
+  const hasResult = m.home_score !== null && m.away_score !== null;
+  const started = !!m.kickoff && new Date(m.kickoff).getTime() <= Date.now();
+  return hasResult || started;
+}
+
+function switchMatchSubtab(tab){
+  document.querySelectorAll('[data-match-panel]').forEach(el=>el.classList.toggle('hidden', el.dataset.matchPanel !== tab));
+  document.querySelectorAll('[data-match-tab]').forEach(el=>el.classList.toggle('active', el.dataset.matchTab === tab));
+}
+
 function renderMatches(){
   if(!state.matches.length){ $('matches').innerHTML='<p class="hint">Ainda não há jogos.</p>'; return; }
 
   const missingSummary = state.player?.is_admin ? missingBetsSummaryHtml() : '';
-  const upcoming = state.matches.filter(m => m.home_score === null || m.away_score === null);
-  const completed = state.matches.filter(m => m.home_score !== null && m.away_score !== null);
+  const upcoming = state.matches.filter(m => !matchHasStartedOrFinished(m));
+  const completed = state.matches.filter(m => matchHasStartedOrFinished(m));
 
   $('matches').innerHTML =
     missingSummary +
-    `<div class="matches-section">
-      <h2 class="matches-section-title">📅 Próximos jogos</h2>
+    `<div class="match-subtabs">
+      <button class="match-subtab active" data-match-tab="upcoming" onclick="switchMatchSubtab('upcoming')">📅 Próximos jogos (${upcoming.length})</button>
+      <button class="match-subtab" data-match-tab="completed" onclick="switchMatchSubtab('completed')">✅ Já iniciados / concluídos (${completed.length})</button>
+    </div>
+    <div class="match-panel" data-match-panel="upcoming">
       ${renderMatchList(upcoming)}
     </div>
-    <div class="matches-section">
-      <h2 class="matches-section-title">✅ Jogos concluídos</h2>
+    <div class="match-panel hidden" data-match-panel="completed">
       ${renderMatchList(completed)}
     </div>`;
 }
