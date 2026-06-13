@@ -74,6 +74,16 @@ function injectFinalStyles(){
     .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
     .stats-card{border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;background:rgba(255,255,255,.05)}
     .live-results-status{margin-top:8px;font-size:.9rem;opacity:.9}
+
+    .daily-winners-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
+    .daily-winner-card{border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px;background:rgba(255,255,255,.06)}
+    .daily-winner-card b{display:block;font-size:1.05rem;margin-bottom:4px}
+    .player-detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:12px 0}
+    .player-detail-card{border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px;background:rgba(255,255,255,.06)}
+    .player-detail-card b{display:block;font-size:1.25rem}
+    .mini-bars{display:flex;gap:4px;align-items:flex-end;height:80px;margin:10px 0}
+    .mini-bar{flex:1;min-width:8px;background:rgba(96,165,250,.75);border-radius:6px 6px 0 0}
+    .copy-ranking-box{margin:18px 0;padding:14px;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(255,255,255,.05)}
   `;
   document.head.appendChild(style);
 }
@@ -144,15 +154,146 @@ function dailyStatsForPlayer(player, dayMatches){
   return { player:player.name, pts, exact, outcomeOnly, failed, bets };
 }
 
+
+function completedMatches(){
+  return state.matches
+    .filter(m=>m.home_score!==null && m.away_score!==null && m.kickoff)
+    .sort((a,b)=>new Date(a.kickoff)-new Date(b.kickoff));
+}
+
+function statsByDay(){
+  const groups = {};
+  completedMatches().forEach(m=>{
+    const key = dayKeyFromKickoff(m.kickoff);
+    groups[key] = groups[key] || [];
+    groups[key].push(m);
+  });
+  return groups;
+}
+
+function playerTotalStats(player){
+  const matches = completedMatches();
+  let pts = 0, exact = 0, outcomeOnly = 0, failed = 0, bets = 0;
+  matches.forEach(m=>{
+    const pr = state.predictions.find(x=>x.player_id===player.id && x.match_id===m.id);
+    if(!pr) return;
+    bets++;
+    const mp = matchPoints(pr,m);
+    pts += mp;
+    if(mp === 5) exact++;
+    else if(mp === 3) outcomeOnly++;
+    else failed++;
+  });
+  const accuracy = bets ? Math.round(((exact + outcomeOnly) / bets) * 100) : 0;
+  return { player:player.name, pts, exact, outcomeOnly, failed, bets, accuracy, totalCompleted:matches.length };
+}
+
+function dailyWinnersHtml(){
+  const groups = statsByDay();
+  const entries = Object.entries(groups);
+  if(!entries.length) return '';
+
+  return `<div class="stats-day">
+    <h3>🏆 Vencedores por dia</h3>
+    <div class="daily-winners-grid">
+      ${entries.map(([date,matches])=>{
+        const rows = state.players.map(p=>dailyStatsForPlayer(p,matches))
+          .sort((a,b)=>b.pts-a.pts || b.exact-a.exact || a.player.localeCompare(b.player));
+        const best = rows[0];
+        return `<div class="daily-winner-card">
+          <b>${date}</b>
+          <span>🥇 ${best?.player || '-'} · ${best?.pts || 0} pts</span><br>
+          <span class="hint">${best?.exact || 0} exato(s) · ${matches.length} jogo(s)</span>
+        </div>`;
+      }).join('')}
+    </div>
+  </div>`;
+}
+
+function bestPlayersHtml(){
+  const rows = state.players.map(playerTotalStats)
+    .sort((a,b)=>b.pts-a.pts || b.exact-a.exact || b.accuracy-a.accuracy || a.player.localeCompare(b.player));
+
+  if(!rows.length) return '';
+
+  const bestExact = [...rows].sort((a,b)=>b.exact-a.exact || b.pts-a.pts)[0];
+  const bestAccuracy = [...rows].filter(r=>r.bets>0).sort((a,b)=>b.accuracy-a.accuracy || b.pts-a.pts)[0];
+  const bestOutcome = [...rows].sort((a,b)=>b.outcomeOnly-a.outcomeOnly || b.pts-a.pts)[0];
+
+  return `<div class="stats-day">
+    <h3>🎯 Melhores do Mundial</h3>
+    <div class="player-detail-grid">
+      <div class="player-detail-card"><span>Mais pontos</span><b>${rows[0]?.player || '-'}</b><span>${rows[0]?.pts || 0} pts</span></div>
+      <div class="player-detail-card"><span>Mais exatos</span><b>${bestExact?.player || '-'}</b><span>${bestExact?.exact || 0} resultados exatos</span></div>
+      <div class="player-detail-card"><span>Melhor acerto</span><b>${bestAccuracy?.player || '-'}</b><span>${bestAccuracy?.accuracy || 0}%</span></div>
+      <div class="player-detail-card"><span>Mais vencedores/empates</span><b>${bestOutcome?.player || '-'}</b><span>${bestOutcome?.outcomeOnly || 0}</span></div>
+    </div>
+  </div>`;
+}
+
+function playerDetailsHtml(){
+  const groups = statsByDay();
+  const dayEntries = Object.entries(groups);
+  if(!dayEntries.length) return '';
+
+  return `<div class="stats-day">
+    <h3>👤 Estatísticas por jogador</h3>
+    ${state.players.map(p=>{
+      const total = playerTotalStats(p);
+      const dayStats = dayEntries.map(([date,matches])=>({date, ...dailyStatsForPlayer(p,matches)}));
+      const max = Math.max(1, ...dayStats.map(d=>d.pts));
+      return `<div class="player-group-card">
+        <h4>${p.name}</h4>
+        <div class="player-detail-grid">
+          <div class="player-detail-card"><span>Pontos jogos</span><b>${total.pts}</b></div>
+          <div class="player-detail-card"><span>Resultados exatos</span><b>${total.exact}</b></div>
+          <div class="player-detail-card"><span>Venc./empate certos</span><b>${total.outcomeOnly}</b></div>
+          <div class="player-detail-card"><span>Taxa de acerto</span><b>${total.accuracy}%</b></div>
+        </div>
+        <div class="mini-bars" title="Pontos por dia">
+          ${dayStats.map(d=>`<div class="mini-bar" title="${d.date}: ${d.pts} pts" style="height:${Math.max(6, Math.round((d.pts/max)*76))}px"></div>`).join('')}
+        </div>
+        <div class="table-wrap">
+          <table class="table stats-table">
+            <tr><th>Dia</th><th>Pontos</th><th>Exatos</th><th>Venc./Empate</th><th>Apostas</th></tr>
+            ${dayStats.map(d=>`<tr><td>${d.date}</td><td><b>${d.pts}</b></td><td>${d.exact}</td><td>${d.outcomeOnly}</td><td>${d.bets}</td></tr>`).join('')}
+          </table>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+async function copyRankingWhatsApp(){
+  const rows = state.players.map(p=>{
+    const bd = playerBreakdown(p.id);
+    return {name:p.name, pts:bd.total};
+  }).sort((a,b)=>b.pts-a.pts || a.name.localeCompare(b.name));
+
+  const text = `🏆 Mundial dos Hutlers\n\nClassificação atual:\n${rows.map((r,i)=>`${i+1}. ${r.name} — ${r.pts} pts`).join('\n')}\n\n📊 Estatísticas disponíveis na app.`;
+  try{
+    await navigator.clipboard.writeText(text);
+    alert('Classificação copiada. Cola no WhatsApp.');
+  }catch(e){
+    prompt('Copia este texto:', text);
+  }
+}
+
+function rankingShareHtml(){
+  return `<div class="copy-ranking-box">
+    <h3>📲 Partilhar classificação</h3>
+    <p class="hint">Copia a classificação atual para o WhatsApp.</p>
+    <button class="secondary small-btn" onclick="copyRankingWhatsApp()">Copiar classificação para WhatsApp</button>
+  </div>`;
+}
+
 function renderStats(){
   if(!$('stats')) return;
 
-  const resulted = state.matches
-    .filter(m=>m.home_score!==null && m.away_score!==null && m.kickoff)
-    .sort((a,b)=>new Date(b.kickoff)-new Date(a.kickoff));
+  const resulted = completedMatches().sort((a,b)=>new Date(b.kickoff)-new Date(a.kickoff));
 
   if(!resulted.length){
-    $('stats').innerHTML = `<h2>📊 Estatísticas diárias</h2><p class="hint">Ainda não há jogos com resultado para calcular estatísticas.</p>`;
+    $('stats').innerHTML = `<h2>📊 Estatísticas</h2><p class="hint">Ainda não há jogos com resultado para calcular estatísticas.</p>`;
     return;
   }
 
@@ -163,380 +304,35 @@ function renderStats(){
     groups[key].push(m);
   });
 
-  $('stats').innerHTML = `<h2>📊 Estatísticas diárias</h2><p class="hint">Pontos por dia, resultados exatos e vencedor/empate certo.</p>` +
-    Object.entries(groups).map(([date, matches])=>{
-      const rows = state.players.map(p=>dailyStatsForPlayer(p,matches))
-        .sort((a,b)=>b.pts-a.pts || b.exact-a.exact || a.player.localeCompare(b.player));
-      const best = rows[0];
-      return `<div class="stats-day">
-        <h3>${date}</h3>
-        <p class="hint">${matches.length} jogo(s) com resultado ${best && best.pts>0 ? `· MVP: <b>${best.player}</b> (${best.pts} pts)` : ''}</p>
-        <div class="table-wrap">
-          <table class="table stats-table">
-            <tr><th>Jogador</th><th>Pontos</th><th>Exatos</th><th>Venc./Empate</th><th>Falhou</th><th>Apostas</th></tr>
-            ${rows.map(r=>`<tr>
-              <td><b>${r.player}</b></td>
-              <td><b>${r.pts}</b></td>
-              <td>${r.exact}</td>
-              <td>${r.outcomeOnly}</td>
-              <td>${r.failed}</td>
-              <td>${r.bets}/${matches.length}</td>
-            </tr>`).join('')}
-          </table>
-        </div>
-      </div>`;
-    }).join('');
-}
-
-
-function outcome(h,a){ if(h===null||a===null||h===undefined||a===undefined) return null; return h>a?'home':h<a?'away':'draw'; }
-function matchPoints(pred, match){ if(match.home_score===null||match.away_score===null||pred.home_prediction===null||pred.away_prediction===null) return 0; if(pred.home_prediction===match.home_score && pred.away_prediction===match.away_score) return 5; return outcome(pred.home_prediction,pred.away_prediction)===outcome(match.home_score,match.away_score)?3:0; }
-function groupPoints(gp, group){ if(!group.final_order || !gp.predicted_order) return 0; return gp.predicted_order.reduce((sum,t,i)=>sum+(group.final_order[i]===t?3:0),0); }
-function bonusPoints(bp){ const r=state.bonusResults||{}; let pts=0; if(bp?.champion && r.champion && bp.champion.trim().toLowerCase()===r.champion.trim().toLowerCase()) pts+=10; if(bp?.runner_up && r.runner_up && bp.runner_up.trim().toLowerCase()===r.runner_up.trim().toLowerCase()) pts+=5; if(bp?.top_scorer && r.top_scorer && bp.top_scorer.trim().toLowerCase()===r.top_scorer.trim().toLowerCase()) pts+=5; return pts; }
-async function loadAll(){
-  const [players,matches,preds,groups,gpreds,bpreds,bres] = await Promise.all([
-    sb.from('players').select('*').order('id'), sb.from('matches').select('*').order('kickoff',{ascending:true}), sb.from('predictions').select('*'), sb.from('groups').select('*').order('name'), sb.from('group_predictions').select('*'), sb.from('bonus_predictions').select('*'), sb.from('bonus_results').select('*').eq('id',1).single()
-  ]);
-  state.players=players.data||[]; state.matches=matches.data||[]; state.predictions=preds.data||[]; state.groups=groups.data||[]; state.groupPreds=gpreds.data||[]; state.bonusPreds=bpreds.data||[]; state.bonusResults=bres.data||{};
-  renderPlayers(); if(state.player){ state.player = state.players.find(p=>p.id===state.player.id)||state.player; renderApp(); }
-}
-function renderPlayers(){ $('playerSelect').innerHTML = state.players.map(p=>`<option value="${p.id}">${p.name}</option>`).join(''); }
-async function login(){ const p=state.players.find(x=>String(x.id)===$('playerSelect').value); if(!p || p.pin !== $('pinInput').value){ alert('Nome ou PIN errado.'); return; } state.player=p; localStorage.setItem('playerId',p.id); $('login').classList.add('hidden'); $('app').classList.remove('hidden'); renderApp(); }
-
-function injectBetterPredictionStyles(){
-  if(document.getElementById('better-prediction-styles')) return;
-  const style = document.createElement('style');
-  style.id = 'better-prediction-styles';
-  style.textContent = `
-    .table-wrap{overflow-x:auto;margin-top:10px}
-    .predictions-table{min-width:620px}
-    .predictions-table th,.predictions-table td{vertical-align:top}
-    .prediction-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px}
-    .prediction-card{border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:10px;background:rgba(255,255,255,.06)}
-    .prediction-player{font-weight:800;margin-bottom:4px}
-    .prediction-score{font-size:1.35rem;font-weight:900}
-    .prediction-meta{font-size:.82rem;opacity:.85;margin-top:3px}
-  `;
-  document.head.appendChild(style);
-}
-
-function renderApp(){ ensureExtraUi(); injectFinalStyles();  injectBetterPredictionStyles();  $('who').textContent = state.player.name; $('adminBadge').classList.toggle('hidden',!state.player.is_admin); $('adminTabBtn').classList.toggle('hidden',!state.player.is_admin); $('adminBonus').classList.toggle('hidden',!state.player.is_admin); $('adminGroups').classList.toggle('hidden',!state.player.is_admin); if(!state.player.is_admin && activeTab==='admin') activeTab='ranking'; renderRanking(); renderBonus(); renderGroups(); renderMatches(); renderStats(); ensureLiveResultsAdminBox(); switchTab(activeTab); }
-function playerBreakdown(playerId){
-  let matchPts = 0;
-  let groupPts = 0;
-  let bonusPts = 0;
-  const playerPreds = state.predictions.filter(x=>x.player_id===playerId);
-  playerPreds.forEach(pr=>{
-    const m = state.matches.find(mm=>mm.id===pr.match_id);
-    if(m) matchPts += matchPoints(pr,m);
-  });
-  state.groupPreds.filter(x=>x.player_id===playerId).forEach(gp=>{
-    const g = state.groups.find(gg=>gg.id===gp.group_id);
-    if(g) groupPts += groupPoints(gp,g);
-  });
-  bonusPts = bonusPoints(state.bonusPreds.find(x=>x.player_id===playerId));
-  const now = Date.now();
-  const openMatches = state.matches.filter(m=>!m.kickoff || new Date(m.kickoff).getTime() > now);
-  const betMatchIds = new Set(playerPreds.map(p=>p.match_id));
-  const missingOpen = openMatches.filter(m=>!betMatchIds.has(m.id));
-  return {
-    matchPts,
-    groupPts,
-    bonusPts,
-    total: matchPts + groupPts + bonusPts,
-    matchBets: playerPreds.length,
-    totalMatches: state.matches.length,
-    missingOpenCount: missingOpen.length,
-    missingOpen
-  };
-}
-
-function mvpDaJornadaHtml(){
-  const resultedMatches = state.matches
-    .filter(m => m.home_score !== null && m.away_score !== null && m.kickoff)
-    .sort((a,b) => new Date(b.kickoff) - new Date(a.kickoff));
-
-  if(!resultedMatches.length){
-    return `<div class="summary-card"><h3>🏆 MVP da Jornada</h3><p class="hint">Ainda não há jogos com resultado.</p></div>`;
-  }
-
-  const latestDate = new Date(resultedMatches[0].kickoff).toLocaleDateString('pt-PT');
-  const dayMatches = resultedMatches.filter(m => new Date(m.kickoff).toLocaleDateString('pt-PT') === latestDate);
-
-  const rows = state.players.map(p => {
-    let pts = 0;
-    let exact = 0;
-    let outcomeOnly = 0;
-
-    dayMatches.forEach(m => {
-      const pr = state.predictions.find(x => x.player_id === p.id && x.match_id === m.id);
-      if(!pr) return;
-      const mp = matchPoints(pr, m);
-      pts += mp;
-      if(mp === 5) exact += 1;
-      else if(mp === 3) outcomeOnly += 1;
-    });
-
-    return { name:p.name, pts, exact, outcomeOnly };
-  }).sort((a,b) => b.pts - a.pts || b.exact - a.exact || a.name.localeCompare(b.name));
-
-  const winners = rows.filter(r => r.pts > 0).slice(0,3);
-  const medal = i => i===0 ? '🥇' : i===1 ? '🥈' : '🥉';
-  const matchesLabel = dayMatches.length === 1 ? '1 jogo' : `${dayMatches.length} jogos`;
-
-  if(!winners.length){
-    return `<div class="summary-card"><h3>🏆 MVP da Jornada</h3><p class="hint">${latestDate} · ${matchesLabel} com resultado, mas ninguém pontuou ainda.</p></div>`;
-  }
-
-  return `<div class="summary-card"><h3>🏆 MVP da Jornada</h3><p class="hint">${latestDate} · ${matchesLabel} com resultado</p><div class="mvp-list">${winners.map((r,i)=>`<div class="mvp-row"><b>${medal(i)} ${r.name}</b><span>${r.pts} pts · ${r.exact} exato(s) · ${r.outcomeOnly} vencedor/empate</span></div>`).join('')}</div></div>`;
-}
-
-function renderRanking(){
-  const rows=state.players.map(p=>{
-    const bd = playerBreakdown(p.id);
-    return {name:p.name, id:p.id, pts:bd.total, bd};
-  }).sort((a,b)=>b.pts-a.pts || a.name.localeCompare(b.name));
-  const me = rows.find(r=>r.id===state.player.id);
-  const summary = me ? `<div class="summary-card"><h3>O teu resumo</h3><div class="summary-grid"><div><b>${me.bd.matchBets}/${me.bd.totalMatches}</b><span>jogos apostados</span></div><div><b>${me.bd.missingOpenCount}</b><span>jogos por apostar</span></div><div><b>${me.bd.matchPts}</b><span>pts jogos</span></div><div><b>${me.bd.groupPts}</b><span>pts grupos</span></div><div><b>${me.bd.bonusPts}</b><span>pts bónus</span></div><div><b>${me.pts}</b><span>total</span></div></div>${me.bd.missingOpenCount ? `<p class="hint"><b>Próximos por apostar:</b> ${me.bd.missingOpen.slice(0,5).map(m=>`${f(m.home_team)} vs ${f(m.away_team)}`).join(' · ')}${me.bd.missingOpenCount>5?' · ...':''}</p>` : '<p class="hint">Não tens jogos em aberto por apostar.</p>'}</div>` : '';
-  const medal = i => i===0 ? '🥇' : i===1 ? '🥈' : i===2 ? '🥉' : `${i+1}.º`;
-  const top3 = rows.slice(0,3).map((r,i)=>`<div class="podium-card podium-${i+1}"><div class="podium-medal">${medal(i)}</div><div><b>${r.name}</b><span>${r.pts} pts</span></div></div>`).join('');
-  const podium = rows.length ? `<div class="podium">${top3}</div>` : '';
-  const mvp = mvpDaJornadaHtml();
-  $('ranking').innerHTML=summary + mvp + podium + `<table class="table"><tr><th>#</th><th>Nome</th><th>Jogos</th><th>Grupos</th><th>Bónus</th><th>Pontos</th></tr>${rows.map((r,i)=>`<tr class="${i<3?'top-row top-'+(i+1):''}"><td>${medal(i)}</td><td>${r.name}</td><td>${r.bd.matchPts}</td><td>${r.bd.groupPts}</td><td>${r.bd.bonusPts}</td><td><b>${r.pts}</b></td></tr>`).join('')}</table>`;
-}
-function renderBonus(){
-  const bp=state.bonusPreds.find(x=>x.player_id===state.player.id)||{};
-  const locked = bonusAreLocked();
-  const deadlineText = BONUS_PREDICTIONS_DEADLINE.toLocaleString('pt-PT', { dateStyle:'short', timeStyle:'short' });
-
-  $('championInput').value=bp.champion||'';
-  $('runnerInput').value=bp.runner_up||'';
-  $('scorerInput').value=bp.top_scorer||'';
-
-  ['championInput','runnerInput','scorerInput'].forEach(id=>{
-    if($(id)) $(id).disabled = locked;
-  });
-
-  if($('saveBonusBtn')){
-    $('saveBonusBtn').disabled = locked;
-    $('saveBonusBtn').textContent = locked ? 'Bónus bloqueados' : 'Guardar bónus';
-  }
-
-  let note = document.getElementById('bonus-lock-note');
-  if(!note && $('championInput')){
-    note = document.createElement('p');
-    note.id = 'bonus-lock-note';
-    $('championInput').parentElement?.parentElement?.before(note);
-  }
-  if(note){
-    note.className = locked ? 'locked-note' : 'open-note';
-    note.textContent = locked
-      ? `🔒 Apostas bónus bloqueadas desde ${deadlineText}.`
-      : `⏳ Podes alterar as apostas bónus até ${deadlineText}.`;
-  }
-
-  const oldReveal = document.getElementById('bonusRevealBox');
-  if(oldReveal) oldReveal.remove();
-
-  if(locked && $('scorerInput')){
-    const reveal = document.createElement('div');
-    reveal.id = 'bonusRevealBox';
-    reveal.className = 'bonus-reveal';
-    const preds = [...state.bonusPreds].sort((a,b)=>{
-      const pa = state.players.find(p=>p.id===a.player_id)?.name || '';
-      const pb = state.players.find(p=>p.id===b.player_id)?.name || '';
-      return pa.localeCompare(pb);
-    });
-
-    reveal.innerHTML = `<h3>👀 Apostas bónus dos jogadores</h3>
-      ${preds.length ? `<div class="table-wrap"><table class="table bonus-table">
-        <tr><th>Jogador</th><th>Campeão</th><th>Finalista vencido</th><th>Melhor marcador</th><th>Pontos</th></tr>
-        ${preds.map(x=>{
-          const pl = state.players.find(p=>p.id===x.player_id);
-          return `<tr>
-            <td><b>${pl?.name || 'Jogador'}</b></td>
-            <td>${x.champion || '-'}</td>
-            <td>${x.runner_up || '-'}</td>
-            <td>${x.top_scorer || '-'}</td>
-            <td><b>${bonusPoints(x)}</b></td>
-          </tr>`;
-        }).join('')}
-      </table></div>` : '<p class="hint">Ainda sem apostas bónus.</p>'}`;
-    $('scorerInput').parentElement?.parentElement?.after(reveal);
-  }
-
-  if(state.player.is_admin){
-    $('realChampion').value=state.bonusResults.champion||'';
-    $('realRunner').value=state.bonusResults.runner_up||'';
-    $('realScorer').value=state.bonusResults.top_scorer||'';
-  }
-}
-async function saveBonus(){
-  if(bonusAreLocked()){
-    alert('As apostas bónus já estão bloqueadas.');
-    return;
-  }
-  await sb.from('bonus_predictions').upsert({player_id:state.player.id, champion:$('championInput').value, runner_up:$('runnerInput').value, top_scorer:$('scorerInput').value, updated_at:new Date().toISOString()},{onConflict:'player_id'});
-  await loadAll();
-  alert('Bónus guardado.');
-}
-async function saveBonusResults(){ await sb.from('bonus_results').upsert({id:1, champion:$('realChampion').value, runner_up:$('realRunner').value, top_scorer:$('realScorer').value, updated_at:new Date().toISOString()}); await loadAll(); alert('Resultados bónus guardados.'); }
-function groupsAreLocked(){ return Date.now() >= GROUP_PREDICTIONS_DEADLINE.getTime(); }
-function orderSelect(id, teams, selected, disabled=false){ return `<select id="${id}" ${disabled?'disabled':''}>${teams.map(t=>`<option value="${t}" ${t===selected?'selected':''}>${f(t)}</option>`).join('')}</select>`; }
-function renderGroups(){
-  if(!state.groups.length){ $('groups').innerHTML='<p class="hint">Ainda não há grupos criados.</p>'; $('groupResults').innerHTML=''; return; }
-  const locked = groupsAreLocked();
-  const deadlineText = GROUP_PREDICTIONS_DEADLINE.toLocaleString('pt-PT', { dateStyle:'short', timeStyle:'short' });
-  const lockNotice = locked
-    ? `<p class="locked-note">🔒 Apostas dos grupos bloqueadas desde ${deadlineText}.</p>`
-    : `<p class="open-note">⏳ Podes alterar as apostas dos grupos até ${deadlineText}.</p>`;
-
-  $('groups').innerHTML = lockNotice + state.groups.map(g=>{
-    const gp=state.groupPreds.find(x=>x.player_id===state.player.id && x.group_id===g.id);
-    const arr=gp?.predicted_order||g.teams;
-    const allPreds = state.groupPreds.filter(x=>x.group_id===g.id);
-    const visiblePreds = locked
-      ? groupPredictionsTableHtml(g, allPreds)
-      : `<p class="hint">${allPreds.length}/${state.players.length||9} participantes já apostaram neste grupo. As apostas dos outros ficam escondidas até ao bloqueio.</p>`;
-    return `<div class="groupbox"><h3>${g.name}</h3><div class="order">${[0,1,2,3].map(i=>`<label>${i+1}.º ${orderSelect(`gp-${g.id}-${i}`,g.teams,arr[i],locked)}</label>`).join('')}</div>${locked ? '<button disabled>Grupos bloqueados</button>' : `<button onclick="saveGroupPrediction(${g.id})">Guardar ${g.name}</button>`}${visiblePreds}</div>`;
-  }).join('');
-
-  if(state.player.is_admin){
-    $('groupResults').innerHTML=state.groups.map(g=>{
-      const arr=g.final_order||g.teams;
-      return `<div class="groupbox"><h3>${g.name}</h3><div class="order">${[0,1,2,3].map(i=>`<label>${i+1}.º ${orderSelect(`gr-${g.id}-${i}`,g.teams,arr[i])}</label>`).join('')}</div><button onclick="saveGroupResult(${g.id})">Guardar classificação final</button></div>`;
-    }).join('');
-  }
-}
-
-function groupPredictionsTableHtml(group, allPreds){
-  if(!allPreds.length){
-    return '<div class="group-reveal"><p class="hint">Ainda sem apostas.</p></div>';
-  }
-
-  const sortedPreds = [...allPreds].sort((a,b)=>{
-    const pa = state.players.find(p=>p.id===a.player_id)?.name || '';
-    const pb = state.players.find(p=>p.id===b.player_id)?.name || '';
-    return pa.localeCompare(pb);
-  });
-
-  return `<div class="group-reveal">
-    <b>Apostas do grupo</b>
-    <div class="table-wrap">
-      <table class="table predictions-table">
-        <tr>
-          <th>Jogador</th>
-          <th>1.º</th>
-          <th>2.º</th>
-          <th>3.º</th>
-          <th>4.º</th>
-        </tr>
-        ${sortedPreds.map(x=>{
-          const pl = state.players.find(p=>p.id===x.player_id);
-          const order = x.predicted_order || [];
-          return `<tr>
-            <td><b>${pl?.name || 'Jogador'}</b></td>
-            <td>${f(order[0] || '')}</td>
-            <td>${f(order[1] || '')}</td>
-            <td>${f(order[2] || '')}</td>
-            <td>${f(order[3] || '')}</td>
-          </tr>`;
-        }).join('')}
-      </table>
-    </div>
-  </div>`;
-}
-
-async function saveGroupPrediction(groupId){ if(groupsAreLocked()){ alert('As apostas dos grupos já estão bloqueadas.'); return; } const order=[0,1,2,3].map(i=>$(`gp-${groupId}-${i}`).value); if(new Set(order).size!==4){ alert('Não podes repetir equipas no mesmo grupo.'); return; } await sb.from('group_predictions').upsert({player_id:state.player.id, group_id:groupId, predicted_order:order, updated_at:new Date().toISOString()},{onConflict:'player_id,group_id'}); await loadAll(); alert('Aposta do grupo guardada.'); }
-async function saveGroupResult(groupId){ const order=[0,1,2,3].map(i=>$(`gr-${groupId}-${i}`).value); if(new Set(order).size!==4){ alert('Não podes repetir equipas.'); return; } await sb.from('groups').update({final_order:order}).eq('id',groupId); await loadAll(); alert('Classificação final guardada.'); }
-function isMatchLocked(m){ return !!m.kickoff && new Date(m.kickoff).getTime() <= Date.now(); }
-function matchPredictionsHtml(m, locked){
-  const preds = state.predictions.filter(x=>x.match_id===m.id);
-  const totalPlayers = state.players.length || 9;
-
-  if(!locked){
-    return `<div class="bet-count"><b>${preds.length}/${totalPlayers}</b><span>participantes já apostaram</span></div><p class="hint">As apostas dos outros ficam escondidas até o jogo começar.</p>`;
-  }
-
-  if(!preds.length) return '<p class="hint">Apostas: ainda sem apostas.</p>';
-
-  const sortedPreds = [...preds].sort((a,b)=>{
-    const pa = state.players.find(p=>p.id===a.player_id)?.name || '';
-    const pb = state.players.find(p=>p.id===b.player_id)?.name || '';
-    return pa.localeCompare(pb);
-  });
-
-  return `<div class="bet-count"><b>${preds.length}/${totalPlayers}</b><span>participantes apostaram</span></div>
-    <div class="predictions">
-      <b>Apostas dos jogadores</b>
-      <div class="prediction-cards">
-        ${sortedPreds.map(pr=>{
-          const player = state.players.find(p=>p.id===pr.player_id);
-          const pts = matchPoints(pr,m);
-          const hasResult = m.home_score !== null && m.away_score !== null;
-          const status = hasResult ? (pts === 5 ? 'Resultado exato' : pts === 3 ? 'Vencedor/empate certo' : 'Falhou') : 'Aposta registada';
-          return `<div class="prediction-card">
-            <div class="prediction-player">${player?.name || 'Jogador'}</div>
-            <div class="prediction-score">${pr.home_prediction}-${pr.away_prediction}</div>
-            <div class="prediction-meta">${hasResult ? `${pts} pts · ${status}` : status}</div>
-          </div>`;
-        }).join('')}
+  const dailyTables = Object.entries(groups).map(([date, matches])=>{
+    const rows = state.players.map(p=>dailyStatsForPlayer(p,matches))
+      .sort((a,b)=>b.pts-a.pts || b.exact-a.exact || a.player.localeCompare(b.player));
+    const best = rows[0];
+    return `<div class="stats-day">
+      <h3>${date}</h3>
+      <p class="hint">${matches.length} jogo(s) com resultado ${best && best.pts>0 ? `· MVP: <b>${best.player}</b> (${best.pts} pts)` : ''}</p>
+      <div class="table-wrap">
+        <table class="table stats-table">
+          <tr><th>Jogador</th><th>Pontos</th><th>Exatos</th><th>Venc./Empate</th><th>Falhou</th><th>Apostas</th></tr>
+          ${rows.map(r=>`<tr>
+            <td><b>${r.player}</b></td>
+            <td><b>${r.pts}</b></td>
+            <td>${r.exact}</td>
+            <td>${r.outcomeOnly}</td>
+            <td>${r.failed}</td>
+            <td>${r.bets}/${matches.length}</td>
+          </tr>`).join('')}
+        </table>
       </div>
     </div>`;
-}
-function missingPlayersForMatch(matchId){
-  const preds = state.predictions.filter(x=>x.match_id===matchId);
-  const playerIdsWithBet = new Set(preds.map(p=>p.player_id));
-  return state.players.filter(p=>!playerIdsWithBet.has(p.id)).map(p=>p.name);
-}
-async function copyMissingBets(matchId){
-  const match = state.matches.find(m=>m.id===matchId);
-  const missing = missingPlayersForMatch(matchId);
-  const title = match ? `${f(match.home_team)} vs ${f(match.away_team)}` : 'este jogo';
-  const text = missing.length
-    ? `Mundial dos Hutlers ⚽\nFaltam apostar no jogo ${title}:\n${missing.map(n=>`- ${n}`).join('\n')}`
-    : `Mundial dos Hutlers ⚽\nTodos já apostaram no jogo ${title}.`;
-  try{
-    await navigator.clipboard.writeText(text);
-    alert('Texto copiado. Cola no WhatsApp.');
-  }catch(e){
-    prompt('Copia este texto para o WhatsApp:', text);
-  }
-}
+  }).join('');
 
-function missingBetsSummary(){
-  const now = Date.now();
-  const next24h = now + (24 * 60 * 60 * 1000);
-  return state.matches
-    .filter(m=>{
-      if(!m.kickoff) return false;
-      const kickoff = new Date(m.kickoff).getTime();
-      return kickoff > now && kickoff <= next24h;
-    })
-    .map(m=>({ match:m, missing: missingPlayersForMatch(m.id) }))
-    .filter(x=>x.missing.length)
-    .sort((a,b)=>new Date(a.match.kickoff || 0) - new Date(b.match.kickoff || 0));
-}
-function missingBetsSummaryHtml(){
-  const items = missingBetsSummary();
-  if(!items.length){
-    return `<div class="summary-card"><h3>📢 Faltas nas próximas 24h</h3><p class="hint">Todos já apostaram nos jogos das próximas 24 horas, ou não há jogos nesse período.</p></div>`;
-  }
-  const preview = items.slice(0,5).map(x=>`<div class="missing-line"><b>${f(x.match.home_team)} vs ${f(x.match.away_team)}</b><br><span>${new Date(x.match.kickoff).toLocaleString('pt-PT', { dateStyle:'short', timeStyle:'short' })}</span><br><span>Faltam: ${x.missing.join(', ')}</span></div>`).join('');
-  const extra = items.length > 5 ? `<p class="hint">+ ${items.length - 5} jogo(s) com faltas nas próximas 24h.</p>` : '';
-  return `<div class="summary-card"><h3>📢 Faltas nas próximas 24h</h3>${preview}${extra}<button class="secondary small-btn" onclick="copyMissingBetsSummary()">Copiar resumo para WhatsApp</button></div>`;
-}
-async function copyMissingBetsSummary(){
-  const items = missingBetsSummary();
-  const text = items.length
-    ? `Mundial dos Hutlers ⚽\n\nFaltam apostas nos jogos das próximas 24h:\n\n${items.map(x=>`${f(x.match.home_team)} vs ${f(x.match.away_team)}\n${new Date(x.match.kickoff).toLocaleString('pt-PT', { dateStyle:'short', timeStyle:'short' })}\n${x.missing.map(n=>`- ${n}`).join('\n')}`).join('\n\n')}`
-    : 'Mundial dos Hutlers ⚽\nTodos já apostaram nos jogos das próximas 24 horas, ou não há jogos nesse período.';
-  try{
-    await navigator.clipboard.writeText(text);
-    alert('Resumo das próximas 24h copiado. Cola no WhatsApp.');
-  }catch(e){
-    prompt('Copia este texto para o WhatsApp:', text);
-  }
+  $('stats').innerHTML = `<h2>📊 Dashboard estatístico</h2><p class="hint">Resumo diário, melhores jogadores e detalhes por jogador.</p>`
+    + rankingShareHtml()
+    + bestPlayersHtml()
+    + dailyWinnersHtml()
+    + dailyTables
+    + playerDetailsHtml();
 }
 function renderSingleMatch(m){
   const pr=state.predictions.find(x=>x.player_id===state.player.id && x.match_id===m.id)||{};
