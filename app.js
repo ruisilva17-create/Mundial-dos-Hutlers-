@@ -36,6 +36,159 @@ const teamPt = team => {
 };
 const f = team => { const name = teamPt(team); return `${flagMap[name]||''} ${name}`.trim(); };
 
+function ensureExtraUi(){
+  // Separador Estatísticas
+  if(!document.querySelector('[data-tab-btn="stats"]')){
+    const btn = document.createElement('button');
+    btn.dataset.tabBtn = 'stats';
+    btn.innerHTML = '📊 Estatísticas';
+    btn.onclick = () => switchTab('stats');
+
+    const adminBtn = document.querySelector('[data-tab-btn="admin"]');
+    if(adminBtn) adminBtn.parentElement.insertBefore(btn, adminBtn);
+    else document.querySelector('[data-tab-btn]')?.parentElement?.appendChild(btn);
+  }
+
+  if(!$('stats')){
+    const panel = document.createElement('section');
+    panel.id = 'stats';
+    panel.dataset.tabPanel = 'stats';
+    panel.className = 'hidden';
+    const lastPanel = document.querySelector('[data-tab-panel]:last-of-type');
+    (lastPanel?.parentElement || document.body).appendChild(panel);
+  }
+}
+
+function injectFinalStyles(){
+  if(document.getElementById('final-extra-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'final-extra-styles';
+  style.textContent = `
+    .match-subtabs{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 18px}
+    .match-subtab{padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);color:inherit;font-weight:800;cursor:pointer}
+    .match-subtab.active{background:#2563eb;border-color:#60a5fa}
+    .match-panel.hidden{display:none}
+    .bonus-reveal,.live-results-box,.stats-day{margin-top:18px;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px;background:rgba(255,255,255,.05)}
+    .bonus-table,.stats-table,.match-prediction-table{min-width:640px}
+    .stats-day h3,.live-results-box h3{margin:0 0 8px}
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
+    .stats-card{border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;background:rgba(255,255,255,.05)}
+    .live-results-status{margin-top:8px;font-size:.9rem;opacity:.9}
+  `;
+  document.head.appendChild(style);
+}
+
+function ensureLiveResultsAdminBox(){
+  if(!state.player?.is_admin) return;
+  const adminPanel = $('admin') || $('adminGroups')?.parentElement || $('adminBonus')?.parentElement;
+  if(!adminPanel || document.getElementById('liveResultsBox')) return;
+
+  const box = document.createElement('div');
+  box.id = 'liveResultsBox';
+  box.className = 'live-results-box';
+  box.innerHTML = `
+    <h3>🔄 Resultados automáticos</h3>
+    <p class="hint">Vai buscar resultados à API-Football e atualiza os jogos que conseguir associar.</p>
+    <button id="updateLiveResultsBtn" onclick="updateLiveResultsNow()">Atualizar resultados agora</button>
+    <div id="liveResultsStatus" class="live-results-status"></div>
+  `;
+  adminPanel.prepend(box);
+}
+
+async function updateLiveResultsNow(){
+  const btn = $('updateLiveResultsBtn');
+  const status = $('liveResultsStatus');
+  if(btn) btn.disabled = true;
+  if(status) status.textContent = 'A atualizar resultados...';
+
+  try{
+    const res = await fetch('/api/update-results', { method:'POST' });
+    const data = await res.json();
+
+    if(!res.ok){
+      throw new Error(data.error || 'Erro ao atualizar resultados.');
+    }
+
+    if(status){
+      status.textContent = `Feito. Jogos atualizados: ${data.updated || 0}. Jogos associados à API: ${data.linked || 0}. Jogos sem associação: ${data.unmatched || 0}.`;
+    }
+
+    await loadAll();
+    alert(`Resultados atualizados. Jogos atualizados: ${data.updated || 0}`);
+  }catch(err){
+    if(status) status.textContent = err.message;
+    alert(err.message);
+  }finally{
+    if(btn) btn.disabled = false;
+  }
+}
+
+function bonusAreLocked(){ return Date.now() >= BONUS_PREDICTIONS_DEADLINE.getTime(); }
+
+function dayKeyFromKickoff(kickoff){
+  return kickoff ? new Date(kickoff).toLocaleDateString('pt-PT') : 'Sem data';
+}
+
+function dailyStatsForPlayer(player, dayMatches){
+  let pts = 0, exact = 0, outcomeOnly = 0, failed = 0, bets = 0;
+  dayMatches.forEach(m=>{
+    const pr = state.predictions.find(x=>x.player_id===player.id && x.match_id===m.id);
+    if(!pr) return;
+    bets++;
+    const mp = matchPoints(pr,m);
+    pts += mp;
+    if(mp === 5) exact++;
+    else if(mp === 3) outcomeOnly++;
+    else failed++;
+  });
+  return { player:player.name, pts, exact, outcomeOnly, failed, bets };
+}
+
+function renderStats(){
+  if(!$('stats')) return;
+
+  const resulted = state.matches
+    .filter(m=>m.home_score!==null && m.away_score!==null && m.kickoff)
+    .sort((a,b)=>new Date(b.kickoff)-new Date(a.kickoff));
+
+  if(!resulted.length){
+    $('stats').innerHTML = `<h2>📊 Estatísticas diárias</h2><p class="hint">Ainda não há jogos com resultado para calcular estatísticas.</p>`;
+    return;
+  }
+
+  const groups = {};
+  resulted.forEach(m=>{
+    const key = dayKeyFromKickoff(m.kickoff);
+    groups[key] = groups[key] || [];
+    groups[key].push(m);
+  });
+
+  $('stats').innerHTML = `<h2>📊 Estatísticas diárias</h2><p class="hint">Pontos por dia, resultados exatos e vencedor/empate certo.</p>` +
+    Object.entries(groups).map(([date, matches])=>{
+      const rows = state.players.map(p=>dailyStatsForPlayer(p,matches))
+        .sort((a,b)=>b.pts-a.pts || b.exact-a.exact || a.player.localeCompare(b.player));
+      const best = rows[0];
+      return `<div class="stats-day">
+        <h3>${date}</h3>
+        <p class="hint">${matches.length} jogo(s) com resultado ${best && best.pts>0 ? `· MVP: <b>${best.player}</b> (${best.pts} pts)` : ''}</p>
+        <div class="table-wrap">
+          <table class="table stats-table">
+            <tr><th>Jogador</th><th>Pontos</th><th>Exatos</th><th>Venc./Empate</th><th>Falhou</th><th>Apostas</th></tr>
+            ${rows.map(r=>`<tr>
+              <td><b>${r.player}</b></td>
+              <td><b>${r.pts}</b></td>
+              <td>${r.exact}</td>
+              <td>${r.outcomeOnly}</td>
+              <td>${r.failed}</td>
+              <td>${r.bets}/${matches.length}</td>
+            </tr>`).join('')}
+          </table>
+        </div>
+      </div>`;
+    }).join('');
+}
+
+
 function outcome(h,a){ if(h===null||a===null||h===undefined||a===undefined) return null; return h>a?'home':h<a?'away':'draw'; }
 function matchPoints(pred, match){ if(match.home_score===null||match.away_score===null||pred.home_prediction===null||pred.away_prediction===null) return 0; if(pred.home_prediction===match.home_score && pred.away_prediction===match.away_score) return 5; return outcome(pred.home_prediction,pred.away_prediction)===outcome(match.home_score,match.away_score)?3:0; }
 function groupPoints(gp, group){ if(!group.final_order || !gp.predicted_order) return 0; return gp.predicted_order.reduce((sum,t,i)=>sum+(group.final_order[i]===t?3:0),0); }
@@ -63,17 +216,11 @@ function injectBetterPredictionStyles(){
     .prediction-player{font-weight:800;margin-bottom:4px}
     .prediction-score{font-size:1.35rem;font-weight:900}
     .prediction-meta{font-size:.82rem;opacity:.85;margin-top:3px}
-    .match-subtabs{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 18px}
-    .match-subtab{padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);color:inherit;font-weight:800;cursor:pointer}
-    .match-subtab.active{background:#2563eb;border-color:#60a5fa}
-    .match-panel.hidden{display:none}
-    .bonus-reveal{margin-top:18px;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px;background:rgba(255,255,255,.05)}
-    .bonus-table{min-width:640px}
   `;
   document.head.appendChild(style);
 }
 
-function renderApp(){ injectBetterPredictionStyles();  $('who').textContent = state.player.name; $('adminBadge').classList.toggle('hidden',!state.player.is_admin); $('adminTabBtn').classList.toggle('hidden',!state.player.is_admin); $('adminBonus').classList.toggle('hidden',!state.player.is_admin); $('adminGroups').classList.toggle('hidden',!state.player.is_admin); if(!state.player.is_admin && activeTab==='admin') activeTab='ranking'; renderRanking(); renderBonus(); renderGroups(); renderMatches(); switchTab(activeTab); }
+function renderApp(){ ensureExtraUi(); injectFinalStyles();  injectBetterPredictionStyles();  $('who').textContent = state.player.name; $('adminBadge').classList.toggle('hidden',!state.player.is_admin); $('adminTabBtn').classList.toggle('hidden',!state.player.is_admin); $('adminBonus').classList.toggle('hidden',!state.player.is_admin); $('adminGroups').classList.toggle('hidden',!state.player.is_admin); if(!state.player.is_admin && activeTab==='admin') activeTab='ranking'; renderRanking(); renderBonus(); renderGroups(); renderMatches(); renderStats(); ensureLiveResultsAdminBox(); switchTab(activeTab); }
 function playerBreakdown(playerId){
   let matchPts = 0;
   let groupPts = 0;
@@ -235,7 +382,6 @@ async function saveBonus(){
 }
 async function saveBonusResults(){ await sb.from('bonus_results').upsert({id:1, champion:$('realChampion').value, runner_up:$('realRunner').value, top_scorer:$('realScorer').value, updated_at:new Date().toISOString()}); await loadAll(); alert('Resultados bónus guardados.'); }
 function groupsAreLocked(){ return Date.now() >= GROUP_PREDICTIONS_DEADLINE.getTime(); }
-function bonusAreLocked(){ return Date.now() >= BONUS_PREDICTIONS_DEADLINE.getTime(); }
 function orderSelect(id, teams, selected, disabled=false){ return `<select id="${id}" ${disabled?'disabled':''}>${teams.map(t=>`<option value="${t}" ${t===selected?'selected':''}>${f(t)}</option>`).join('')}</select>`; }
 function renderGroups(){
   if(!state.groups.length){ $('groups').innerHTML='<p class="hint">Ainda não há grupos criados.</p>'; $('groupResults').innerHTML=''; return; }
