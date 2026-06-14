@@ -12,7 +12,7 @@ function switchTab(tab){
 // Apostas dos grupos fecham em 13/06/2026 às 12:00, hora de Portugal continental.
 const GROUP_PREDICTIONS_DEADLINE = new Date('2026-06-13T13:30:00+01:00');
 const BONUS_PREDICTIONS_DEADLINE = new Date('2026-06-13T13:30:00+01:00');
-const OTHER_GROUPS_DEADLINE = new Date('2026-06-15T16:00:00+01:00');
+const OTHER_GROUPS_DEADLINE = new Date('2026-06-14T16:00:00+01:00');
 const $ = id => document.getElementById(id);
 const teamNameMap = {
   USA:'Estados Unidos', 'United States':'Estados Unidos',
@@ -283,7 +283,7 @@ function renderRanking(){
   const top3 = rows.slice(0,3).map((r,i)=>`<div class="podium-card podium-${i+1}"><div class="podium-medal">${medal(i)}</div><div><b>${r.name}</b><span>${r.pts} pts</span></div></div>`).join('');
   const podium = rows.length ? `<div class="podium">${top3}</div>` : '';
   const mvp = mvpDaJornadaHtml();
-  $('ranking').innerHTML=summary + mvp + podium + `<table class="table"><tr><th>#</th><th>Nome</th><th>Jogos</th><th>Grupos</th><th>Bónus</th><th>Pontos</th></tr>${rows.map((r,i)=>`<tr class="${i<3?'top-row top-'+(i+1):''}"><td>${medal(i)}</td><td>${r.name}</td><td>${r.bd.matchPts}</td><td>${r.bd.groupPts}</td><td>${r.bd.bonusPts}</td><td><b>${r.pts}</b></td></tr>`).join('')}</table>`;
+  $('ranking').innerHTML=summary + mvp + podium + `<table class="table"><tr><th>#</th><th>Nome</th><th>Jogos apostados</th><th>Pts jogos</th><th>Grupos</th><th>Bónus</th><th>Total</th></tr>${rows.map((r,i)=>`<tr class="${i<3?'top-row top-'+(i+1):''}"><td>${medal(i)}</td><td>${r.name}</td><td>${r.bd.matchBets}/${r.bd.totalMatches}</td><td>${r.bd.matchPts}</td><td>${r.bd.groupPts}</td><td>${r.bd.bonusPts}</td><td><b>${r.pts}</b></td></tr>`).join('')}</table>`;
 }
 function renderBonus(){
   const bp=state.bonusPreds.find(x=>x.player_id===state.player.id)||{};
