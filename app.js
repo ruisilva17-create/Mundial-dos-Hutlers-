@@ -11,8 +11,8 @@ function switchTab(tab){
 
 // Apostas dos grupos fecham em 13/06/2026 às 12:00, hora de Portugal continental.
 const GROUP_PREDICTIONS_DEADLINE = new Date('2026-06-13T13:30:00+01:00');
-const OTHER_GROUPS_DEADLINE = new Date('2026-06-15T16:00:00+01:00');
 const BONUS_PREDICTIONS_DEADLINE = new Date('2026-06-13T13:30:00+01:00');
+const OTHER_GROUPS_DEADLINE = new Date('2026-06-15T16:00:00+01:00');
 const $ = id => document.getElementById(id);
 const teamNameMap = {
   USA:'Estados Unidos', 'United States':'Estados Unidos',
@@ -68,18 +68,26 @@ function injectBetterPredictionStyles(){
     .match-subtab{padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);color:inherit;font-weight:800;cursor:pointer}
     .match-subtab.active{background:#2563eb;border-color:#60a5fa}
     .match-panel.hidden{display:none}
-    .bonus-reveal,.live-results-box,.stats-day,.copy-ranking-box{margin-top:18px;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px;background:rgba(255,255,255,.05)}
+    .bonus-reveal,.live-results-box,.stats-day{margin-top:18px;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px;background:rgba(255,255,255,.05)}
     .bonus-table,.stats-table,.match-prediction-table{min-width:640px}
-    .stats-day h3,.live-results-box h3{margin:0 0 8px}
-    .player-detail-grid,.daily-winners-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:12px 0}
-    .player-detail-card,.daily-winner-card{border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px;background:rgba(255,255,255,.06)}
-    .player-detail-card b,.daily-winner-card b{display:block;font-size:1.1rem;margin-bottom:4px}
-    .mini-bars{display:flex;gap:4px;align-items:flex-end;height:80px;margin:10px 0}
-    .mini-bar{flex:1;min-width:8px;background:rgba(96,165,250,.75);border-radius:6px 6px 0 0}
     .live-results-status{margin-top:8px;font-size:.9rem;opacity:.9}
+    .stat-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:12px 0}
+    .stat-card{border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px;background:rgba(255,255,255,.06)}
+    .stat-card b{display:block;font-size:1.2rem}
   `;
   document.head.appendChild(style);
 }
+
+
+function bonusAreLocked(){ return Date.now() >= BONUS_PREDICTIONS_DEADLINE.getTime(); }
+function normalizeGroupName(name){ return String(name||'').trim().toUpperCase(); }
+function groupDeadline(group){
+  const n = normalizeGroupName(group?.name);
+  return ['GRUPO A','GRUPO B','GRUPO C','GRUPO D','GRUPO E','A','B','C','D','E'].includes(n)
+    ? GROUP_PREDICTIONS_DEADLINE
+    : OTHER_GROUPS_DEADLINE;
+}
+function groupIsLocked(group){ return Date.now() >= groupDeadline(group).getTime(); }
 
 function ensureExtraUi(){
   if(!document.querySelector('[data-tab-btn="stats"]')){
@@ -89,17 +97,14 @@ function ensureExtraUi(){
     btn.onclick = () => switchTab('stats');
     const adminBtn = document.querySelector('[data-tab-btn="admin"]');
     if(adminBtn) adminBtn.parentElement.insertBefore(btn, adminBtn);
-    else document.querySelector('[data-tab-btn]')?.parentElement?.appendChild(btn);
   }
-
   if(!$('stats')){
     const panel = document.createElement('section');
     panel.id = 'stats';
     panel.dataset.tabPanel = 'stats';
     panel.className = 'hidden';
-    const panels = document.querySelectorAll('[data-tab-panel]');
-    const lastPanel = panels[panels.length-1];
-    (lastPanel?.parentElement || document.body).appendChild(panel);
+    const container = $('ranking')?.parentElement || $('app') || document.body;
+    container.appendChild(panel);
   }
 }
 
@@ -107,7 +112,6 @@ function ensureLiveResultsAdminBox(){
   if(!state.player?.is_admin) return;
   const adminPanel = $('admin') || $('adminGroups')?.parentElement || $('adminBonus')?.parentElement;
   if(!adminPanel || document.getElementById('liveResultsBox')) return;
-
   const box = document.createElement('div');
   box.id = 'liveResultsBox';
   box.className = 'live-results-box';
@@ -125,19 +129,11 @@ async function updateLiveResultsNow(){
   const status = $('liveResultsStatus');
   if(btn) btn.disabled = true;
   if(status) status.textContent = 'A atualizar resultados...';
-
   try{
     const res = await fetch('/api/update-results', { method:'POST' });
     const data = await res.json();
-
-    if(!res.ok){
-      throw new Error(data.error || 'Erro ao atualizar resultados.');
-    }
-
-    if(status){
-      status.textContent = `Feito. Jogos atualizados: ${data.updated || 0}. Jogos associados à API: ${data.linked || 0}. Jogos sem associação: ${data.unmatched || 0}.`;
-    }
-
+    if(!res.ok) throw new Error(data.error || 'Erro ao atualizar resultados.');
+    if(status) status.textContent = `Feito. Jogos atualizados: ${data.updated || 0}. Jogos associados à API: ${data.linked || 0}. Jogos sem associação: ${data.unmatched || 0}.`;
     await loadAll();
     alert(`Resultados atualizados. Jogos atualizados: ${data.updated || 0}`);
   }catch(err){
@@ -148,23 +144,92 @@ async function updateLiveResultsNow(){
   }
 }
 
+function dayKeyFromKickoff(kickoff){
+  return kickoff ? new Date(kickoff).toLocaleDateString('pt-PT') : 'Sem data';
+}
+function renderStats(){
+  if(!$('stats')) return;
+  const completed = state.matches.filter(m=>m.home_score!==null && m.away_score!==null && m.kickoff);
+  if(!completed.length){
+    $('stats').innerHTML = '<h2>📊 Estatísticas</h2><p class="hint">Ainda não há jogos com resultado.</p>';
+    return;
+  }
+  const byDay = {};
+  completed.forEach(m=>{
+    const k = dayKeyFromKickoff(m.kickoff);
+    byDay[k] = byDay[k] || [];
+    byDay[k].push(m);
+  });
+  const totalRows = state.players.map(p=>{
+    let pts=0, exact=0, outcomeOnly=0, bets=0;
+    completed.forEach(m=>{
+      const pr = state.predictions.find(x=>x.player_id===p.id && x.match_id===m.id);
+      if(!pr) return;
+      bets++;
+      const mp = matchPoints(pr,m);
+      pts += mp;
+      if(mp===5) exact++;
+      else if(mp===3) outcomeOnly++;
+    });
+    return {name:p.name, pts, exact, outcomeOnly, bets};
+  }).sort((a,b)=>b.pts-a.pts || b.exact-a.exact || a.name.localeCompare(b.name));
+  $('stats').innerHTML = `<h2>📊 Estatísticas</h2>
+    <div class="stat-cards">
+      <div class="stat-card"><span>Líder</span><b>${totalRows[0]?.name || '-'}</b><span>${totalRows[0]?.pts || 0} pts</span></div>
+      <div class="stat-card"><span>Mais exatos</span><b>${[...totalRows].sort((a,b)=>b.exact-a.exact)[0]?.name || '-'}</b><span>${[...totalRows].sort((a,b)=>b.exact-a.exact)[0]?.exact || 0}</span></div>
+      <div class="stat-card"><span>Jogos concluídos</span><b>${completed.length}</b></div>
+    </div>
+    ${Object.entries(byDay).map(([date,matches])=>{
+      const rows = state.players.map(p=>{
+        let pts=0, exact=0, outcomeOnly=0, failed=0, bets=0;
+        matches.forEach(m=>{
+          const pr=state.predictions.find(x=>x.player_id===p.id && x.match_id===m.id);
+          if(!pr) return;
+          bets++;
+          const mp=matchPoints(pr,m);
+          pts+=mp;
+          if(mp===5) exact++;
+          else if(mp===3) outcomeOnly++;
+          else failed++;
+        });
+        return {name:p.name,pts,exact,outcomeOnly,failed,bets};
+      }).sort((a,b)=>b.pts-a.pts || b.exact-a.exact || a.name.localeCompare(b.name));
+      return `<div class="stats-day"><h3>${date}</h3><div class="table-wrap"><table class="table stats-table">
+        <tr><th>Jogador</th><th>Pontos</th><th>Exatos</th><th>Venc./Empate</th><th>Falhou</th><th>Apostas</th></tr>
+        ${rows.map(r=>`<tr><td><b>${r.name}</b></td><td><b>${r.pts}</b></td><td>${r.exact}</td><td>${r.outcomeOnly}</td><td>${r.failed}</td><td>${r.bets}/${matches.length}</td></tr>`).join('')}
+      </table></div></div>`;
+    }).join('')}`;
+}
 
-function renderApp(){
-  injectBetterPredictionStyles();
-  ensureExtraUi();
-  $('who').textContent = state.player.name;
-  $('adminBadge').classList.toggle('hidden',!state.player.is_admin);
-  $('adminTabBtn').classList.toggle('hidden',!state.player.is_admin);
-  $('adminBonus').classList.toggle('hidden',!state.player.is_admin);
-  $('adminGroups').classList.toggle('hidden',!state.player.is_admin);
-  if(!state.player.is_admin && activeTab==='admin') activeTab='ranking';
-  renderRanking();
-  renderBonus();
-  renderGroups();
-  renderMatches();
-  renderStats();
-  ensureLiveResultsAdminBox();
-  switchTab(activeTab);
+function renderApp(){ injectBetterPredictionStyles(); ensureExtraUi();  $('who').textContent = state.player.name; $('adminBadge').classList.toggle('hidden',!state.player.is_admin); $('adminTabBtn').classList.toggle('hidden',!state.player.is_admin); $('adminBonus').classList.toggle('hidden',!state.player.is_admin); $('adminGroups').classList.toggle('hidden',!state.player.is_admin); if(!state.player.is_admin && activeTab==='admin') activeTab='ranking'; renderRanking(); renderBonus(); renderGroups(); renderMatches(); renderStats(); ensureLiveResultsAdminBox(); switchTab(activeTab); }
+function playerBreakdown(playerId){
+  let matchPts = 0;
+  let groupPts = 0;
+  let bonusPts = 0;
+  const playerPreds = state.predictions.filter(x=>x.player_id===playerId);
+  playerPreds.forEach(pr=>{
+    const m = state.matches.find(mm=>mm.id===pr.match_id);
+    if(m) matchPts += matchPoints(pr,m);
+  });
+  state.groupPreds.filter(x=>x.player_id===playerId).forEach(gp=>{
+    const g = state.groups.find(gg=>gg.id===gp.group_id);
+    if(g) groupPts += groupPoints(gp,g);
+  });
+  bonusPts = bonusPoints(state.bonusPreds.find(x=>x.player_id===playerId));
+  const now = Date.now();
+  const openMatches = state.matches.filter(m=>!m.kickoff || new Date(m.kickoff).getTime() > now);
+  const betMatchIds = new Set(playerPreds.map(p=>p.match_id));
+  const missingOpen = openMatches.filter(m=>!betMatchIds.has(m.id));
+  return {
+    matchPts,
+    groupPts,
+    bonusPts,
+    total: matchPts + groupPts + bonusPts,
+    matchBets: playerPreds.length,
+    totalMatches: state.matches.length,
+    missingOpenCount: missingOpen.length,
+    missingOpen
+  };
 }
 
 function mvpDaJornadaHtml(){
@@ -224,17 +289,14 @@ function renderBonus(){
   const bp=state.bonusPreds.find(x=>x.player_id===state.player.id)||{};
   const locked = bonusAreLocked();
   const deadlineText = BONUS_PREDICTIONS_DEADLINE.toLocaleString('pt-PT', { dateStyle:'short', timeStyle:'short' });
-
   $('championInput').value=bp.champion||'';
   $('runnerInput').value=bp.runner_up||'';
   $('scorerInput').value=bp.top_scorer||'';
-
   ['championInput','runnerInput','scorerInput'].forEach(id=>{ if($(id)) $(id).disabled = locked; });
   if($('saveBonusBtn')){
     $('saveBonusBtn').disabled = locked;
     $('saveBonusBtn').textContent = locked ? 'Bónus bloqueados' : 'Guardar bónus';
   }
-
   let note = document.getElementById('bonus-lock-note');
   if(!note && $('championInput')){
     note = document.createElement('p');
@@ -242,13 +304,10 @@ function renderBonus(){
     $('championInput').parentElement?.parentElement?.before(note);
   }
   if(note){
-    note.className = locked ? 'locked-note' : 'open-note';
     note.textContent = locked ? `🔒 Apostas bónus bloqueadas desde ${deadlineText}.` : `⏳ Podes alterar as apostas bónus até ${deadlineText}.`;
   }
-
   const oldReveal = document.getElementById('bonusRevealBox');
   if(oldReveal) oldReveal.remove();
-
   if(locked && $('scorerInput')){
     const reveal = document.createElement('div');
     reveal.id = 'bonusRevealBox';
@@ -258,24 +317,15 @@ function renderBonus(){
       const pb = state.players.find(p=>p.id===b.player_id)?.name || '';
       return pa.localeCompare(pb);
     });
-
-    reveal.innerHTML = `<h3>👀 Apostas bónus dos jogadores</h3>
-      ${preds.length ? `<div class="table-wrap"><table class="table bonus-table">
-        <tr><th>Jogador</th><th>Campeão</th><th>Finalista vencido</th><th>Melhor marcador</th><th>Pontos</th></tr>
-        ${preds.map(x=>{
-          const pl = state.players.find(p=>p.id===x.player_id);
-          return `<tr>
-            <td><b>${pl?.name || 'Jogador'}</b></td>
-            <td>${x.champion || '-'}</td>
-            <td>${x.runner_up || '-'}</td>
-            <td>${x.top_scorer || '-'}</td>
-            <td><b>${bonusPoints(x)}</b></td>
-          </tr>`;
-        }).join('')}
-      </table></div>` : '<p class="hint">Ainda sem apostas bónus.</p>'}`;
+    reveal.innerHTML = `<h3>👀 Apostas bónus dos jogadores</h3>${preds.length ? `<div class="table-wrap"><table class="table bonus-table">
+      <tr><th>Jogador</th><th>Campeão</th><th>Finalista vencido</th><th>Melhor marcador</th><th>Pontos</th></tr>
+      ${preds.map(x=>{
+        const pl = state.players.find(p=>p.id===x.player_id);
+        return `<tr><td><b>${pl?.name || 'Jogador'}</b></td><td>${x.champion || '-'}</td><td>${x.runner_up || '-'}</td><td>${x.top_scorer || '-'}</td><td><b>${bonusPoints(x)}</b></td></tr>`;
+      }).join('')}
+    </table></div>` : '<p class="hint">Ainda sem apostas bónus.</p>'}`;
     $('scorerInput').parentElement?.parentElement?.after(reveal);
   }
-
   if(state.player.is_admin){
     $('realChampion').value=state.bonusResults.champion||'';
     $('realRunner').value=state.bonusResults.runner_up||'';
@@ -293,26 +343,13 @@ async function saveBonus(){
 }
 async function saveBonusResults(){ await sb.from('bonus_results').upsert({id:1, champion:$('realChampion').value, runner_up:$('realRunner').value, top_scorer:$('realScorer').value, updated_at:new Date().toISOString()}); await loadAll(); alert('Resultados bónus guardados.'); }
 function groupsAreLocked(){ return Date.now() >= GROUP_PREDICTIONS_DEADLINE.getTime(); }
-function bonusAreLocked(){ return Date.now() >= BONUS_PREDICTIONS_DEADLINE.getTime(); }
-function normalizeGroupName(name){ return String(name||'').trim().toUpperCase(); }
-function groupDeadline(group){
-  const n = normalizeGroupName(group?.name);
-  return ['GRUPO A','GRUPO B','GRUPO C','GRUPO D','GRUPO E','A','B','C','D','E'].includes(n) ? GROUP_PREDICTIONS_DEADLINE : OTHER_GROUPS_DEADLINE;
-}
-function groupIsLocked(group){ return Date.now() >= groupDeadline(group).getTime(); }
-function groupsAreLocked(){ return Date.now() >= GROUP_PREDICTIONS_DEADLINE.getTime(); }
 function orderSelect(id, teams, selected, disabled=false){ return `<select id="${id}" ${disabled?'disabled':''}>${teams.map(t=>`<option value="${t}" ${t===selected?'selected':''}>${f(t)}</option>`).join('')}</select>`; }
 function renderGroups(){
   if(!state.groups.length){ $('groups').innerHTML='<p class="hint">Ainda não há grupos criados.</p>'; $('groupResults').innerHTML=''; return; }
-
   $('groups').innerHTML = state.groups.map(g=>{
     const locked = groupIsLocked(g);
-    const deadline = groupDeadline(g);
-    const deadlineText = deadline.toLocaleString('pt-PT', { dateStyle:'short', timeStyle:'short' });
-    const lockNotice = locked
-      ? `<p class="locked-note">🔒 ${g.name} bloqueado desde ${deadlineText}.</p>`
-      : `<p class="open-note">⏳ Podes alterar ${g.name} até ${deadlineText}.</p>`;
-
+    const deadlineText = groupDeadline(g).toLocaleString('pt-PT', { dateStyle:'short', timeStyle:'short' });
+    const lockNotice = locked ? `<p class="locked-note">🔒 ${g.name} bloqueado desde ${deadlineText}.</p>` : `<p class="open-note">⏳ Podes alterar ${g.name} até ${deadlineText}.</p>`;
     const gp=state.groupPreds.find(x=>x.player_id===state.player.id && x.group_id===g.id);
     const arr=gp?.predicted_order||g.teams;
     const allPreds = state.groupPreds.filter(x=>x.group_id===g.id);
@@ -459,104 +496,6 @@ async function copyMissingBetsSummary(){
     prompt('Copia este texto para o WhatsApp:', text);
   }
 }
-
-function completedMatches(){
-  return state.matches
-    .filter(m=>m.home_score!==null && m.away_score!==null && m.kickoff)
-    .sort((a,b)=>new Date(a.kickoff)-new Date(b.kickoff));
-}
-function dayKeyFromKickoff(kickoff){
-  return kickoff ? new Date(kickoff).toLocaleDateString('pt-PT') : 'Sem data';
-}
-function dailyStatsForPlayer(player, dayMatches){
-  let pts = 0, exact = 0, outcomeOnly = 0, failed = 0, bets = 0;
-  dayMatches.forEach(m=>{
-    const pr = state.predictions.find(x=>x.player_id===player.id && x.match_id===m.id);
-    if(!pr) return;
-    bets++;
-    const mp = matchPoints(pr,m);
-    pts += mp;
-    if(mp === 5) exact++;
-    else if(mp === 3) outcomeOnly++;
-    else failed++;
-  });
-  return { player:player.name, pts, exact, outcomeOnly, failed, bets };
-}
-function playerTotalStats(player){
-  const matches = completedMatches();
-  let pts = 0, exact = 0, outcomeOnly = 0, failed = 0, bets = 0;
-  matches.forEach(m=>{
-    const pr = state.predictions.find(x=>x.player_id===player.id && x.match_id===m.id);
-    if(!pr) return;
-    bets++;
-    const mp = matchPoints(pr,m);
-    pts += mp;
-    if(mp === 5) exact++;
-    else if(mp === 3) outcomeOnly++;
-    else failed++;
-  });
-  const accuracy = bets ? Math.round(((exact + outcomeOnly) / bets) * 100) : 0;
-  return { player:player.name, pts, exact, outcomeOnly, failed, bets, accuracy, totalCompleted:matches.length };
-}
-async function copyRankingWhatsApp(){
-  const rows = state.players.map(p=>{
-    const bd = playerBreakdown(p.id);
-    return {name:p.name, pts:bd.total};
-  }).sort((a,b)=>b.pts-a.pts || a.name.localeCompare(b.name));
-  const txt = `🏆 Mundial dos Hutlers\n\nClassificação atual:\n${rows.map((r,i)=>`${i+1}. ${r.name} — ${r.pts} pts`).join('\n')}`;
-  try{ await navigator.clipboard.writeText(txt); alert('Classificação copiada. Cola no WhatsApp.'); }
-  catch(e){ prompt('Copia este texto:', txt); }
-}
-function renderStats(){
-  if(!$('stats')) return;
-  const resulted = completedMatches().sort((a,b)=>new Date(b.kickoff)-new Date(a.kickoff));
-  if(!resulted.length){
-    $('stats').innerHTML = `<h2>📊 Estatísticas</h2><p class="hint">Ainda não há jogos com resultado para calcular estatísticas.</p>`;
-    return;
-  }
-  const groups = {};
-  resulted.forEach(m=>{
-    const key = dayKeyFromKickoff(m.kickoff);
-    groups[key] = groups[key] || [];
-    groups[key].push(m);
-  });
-  const totals = state.players.map(playerTotalStats).sort((a,b)=>b.pts-a.pts || b.exact-a.exact || a.player.localeCompare(b.player));
-  const bestExact = [...totals].sort((a,b)=>b.exact-a.exact || b.pts-a.pts)[0];
-  const bestAcc = [...totals].filter(x=>x.bets>0).sort((a,b)=>b.accuracy-a.accuracy || b.pts-a.pts)[0];
-
-  const dailyTables = Object.entries(groups).map(([date, matches])=>{
-    const rows = state.players.map(p=>dailyStatsForPlayer(p,matches))
-      .sort((a,b)=>b.pts-a.pts || b.exact-a.exact || a.player.localeCompare(b.player));
-    const best = rows[0];
-    return `<div class="stats-day">
-      <h3>${date}</h3>
-      <p class="hint">${matches.length} jogo(s) com resultado ${best && best.pts>0 ? `· MVP: <b>${best.player}</b> (${best.pts} pts)` : ''}</p>
-      <div class="table-wrap">
-        <table class="table stats-table">
-          <tr><th>Jogador</th><th>Pontos</th><th>Exatos</th><th>Venc./Empate</th><th>Falhou</th><th>Apostas</th></tr>
-          ${rows.map(r=>`<tr><td><b>${r.player}</b></td><td><b>${r.pts}</b></td><td>${r.exact}</td><td>${r.outcomeOnly}</td><td>${r.failed}</td><td>${r.bets}/${matches.length}</td></tr>`).join('')}
-        </table>
-      </div>
-    </div>`;
-  }).join('');
-
-  $('stats').innerHTML = `<h2>📊 Dashboard estatístico</h2>
-    <div class="copy-ranking-box">
-      <h3>📲 Partilhar classificação</h3>
-      <button class="secondary small-btn" onclick="copyRankingWhatsApp()">Copiar classificação para WhatsApp</button>
-    </div>
-    <div class="stats-day">
-      <h3>🎯 Melhores do Mundial</h3>
-      <div class="player-detail-grid">
-        <div class="player-detail-card"><span>Mais pontos</span><b>${totals[0]?.player || '-'}</b><span>${totals[0]?.pts || 0} pts</span></div>
-        <div class="player-detail-card"><span>Mais exatos</span><b>${bestExact?.player || '-'}</b><span>${bestExact?.exact || 0}</span></div>
-        <div class="player-detail-card"><span>Melhor acerto</span><b>${bestAcc?.player || '-'}</b><span>${bestAcc?.accuracy || 0}%</span></div>
-      </div>
-    </div>
-    ${dailyTables}`;
-}
-
-
 function renderSingleMatch(m){
   const pr=state.predictions.find(x=>x.player_id===state.player.id && x.match_id===m.id)||{};
   const locked=isMatchLocked(m);
@@ -566,7 +505,6 @@ function renderSingleMatch(m){
     : `<div class="scoreline"><label>${f(m.home_team)}<input id="ph-${m.id}" type="number" value="${pr.home_prediction??''}"></label><label>${f(m.away_team)}<input id="pa-${m.id}" type="number" value="${pr.away_prediction??''}"></label><button onclick="savePrediction(${m.id})">Guardar aposta</button></div>`;
   return `<div class="match"><div class="teams">${f(m.home_team)} vs ${f(m.away_team)}</div><div class="small">${m.kickoff?new Date(m.kickoff).toLocaleString('pt-PT'):''}</div>${m.home_score!==null&&m.away_score!==null?`<div class="small"><b>Resultado:</b> ${m.home_score}-${m.away_score}</div>`:''}${betArea}${matchPredictionsHtml(m,locked)}${admin}</div>`;
 }
-
 function renderMatchList(matches){
   if(!matches.length) return '<p class="hint">Sem jogos nesta secção.</p>';
   let lastDateKey = '';
@@ -578,38 +516,30 @@ function renderMatchList(matches){
     return `${dateHeader}${renderSingleMatch(m)}`;
   }).join('');
 }
-
 function matchStatus(m){
-  const hasResult = m.home_score !== null && m.away_score !== null;
-  if(hasResult) return 'completed';
+  if(m.home_score !== null && m.away_score !== null) return 'completed';
   const kickoff = m.kickoff ? new Date(m.kickoff).getTime() : null;
   if(kickoff && kickoff <= Date.now()) return 'live';
   return 'future';
 }
-
 function switchMatchSubtab(tab){
   document.querySelectorAll('[data-match-panel]').forEach(el=>el.classList.toggle('hidden', el.dataset.matchPanel !== tab));
   document.querySelectorAll('[data-match-tab]').forEach(el=>el.classList.toggle('active', el.dataset.matchTab === tab));
 }
-
 function renderMatches(){
   if(!state.matches.length){ $('matches').innerHTML='<p class="hint">Ainda não há jogos.</p>'; return; }
-
   const missingSummary = state.player?.is_admin ? missingBetsSummaryHtml() : '';
-  const future = state.matches.filter(m => matchStatus(m) === 'future');
-  const live = state.matches.filter(m => matchStatus(m) === 'live');
-  const completed = state.matches.filter(m => matchStatus(m) === 'completed');
-
-  $('matches').innerHTML =
-    missingSummary +
-    `<div class="match-subtabs">
-      <button class="match-subtab active" data-match-tab="future" onclick="switchMatchSubtab('future')">📅 Futuros (${future.length})</button>
-      <button class="match-subtab" data-match-tab="live" onclick="switchMatchSubtab('live')">🔴 A decorrer (${live.length})</button>
-      <button class="match-subtab" data-match-tab="completed" onclick="switchMatchSubtab('completed')">✅ Concluídos (${completed.length})</button>
-    </div>
-    <div class="match-panel" data-match-panel="future">${renderMatchList(future)}</div>
-    <div class="match-panel hidden" data-match-panel="live">${renderMatchList(live)}</div>
-    <div class="match-panel hidden" data-match-panel="completed">${renderMatchList(completed)}</div>`;
+  const future = state.matches.filter(m => matchStatus(m)==='future');
+  const live = state.matches.filter(m => matchStatus(m)==='live');
+  const completed = state.matches.filter(m => matchStatus(m)==='completed');
+  $('matches').innerHTML = missingSummary + `<div class="match-subtabs">
+    <button class="match-subtab active" data-match-tab="future" onclick="switchMatchSubtab('future')">📅 Futuros (${future.length})</button>
+    <button class="match-subtab" data-match-tab="live" onclick="switchMatchSubtab('live')">🔴 A decorrer (${live.length})</button>
+    <button class="match-subtab" data-match-tab="completed" onclick="switchMatchSubtab('completed')">✅ Concluídos (${completed.length})</button>
+  </div>
+  <div class="match-panel" data-match-panel="future">${renderMatchList(future)}</div>
+  <div class="match-panel hidden" data-match-panel="live">${renderMatchList(live)}</div>
+  <div class="match-panel hidden" data-match-panel="completed">${renderMatchList(completed)}</div>`;
 }
 async function savePrediction(matchId){ const m=state.matches.find(x=>x.id===matchId); if(m && isMatchLocked(m)){ alert('Este jogo já começou. As apostas estão bloqueadas.'); return; } const h=$(`ph-${matchId}`).value, a=$(`pa-${matchId}`).value; if(h===''||a===''){ alert('Preenche os dois resultados.'); return; } await sb.from('predictions').upsert({player_id:state.player.id, match_id:matchId, home_prediction:Number(h), away_prediction:Number(a)},{onConflict:'player_id,match_id'}); await loadAll(); alert('Aposta guardada.'); }
 async function saveResult(matchId){
