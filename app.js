@@ -744,35 +744,31 @@ document.addEventListener('click', e=>{
 
   e.preventDefault();
 
-  renderStats();
-
-  document.querySelectorAll('[data-tab-panel]').forEach(el=>{
-    el.classList.add('hidden');
-  });
-
-  document.querySelectorAll('[data-tab-btn]').forEach(el=>{
-    el.classList.remove('active');
-  });
-
   let stats = $('stats');
 
-if(!stats){
-  stats = document.createElement('section');
-  stats.id = 'stats';
-  stats.dataset.tabPanel = 'stats';
+  if(!stats){
+    stats = document.createElement('section');
+    stats.id = 'stats';
+    stats.dataset.tabPanel = 'stats';
+    stats.className = 'card';
+    const container = document.querySelector('main') || document.body;
+    container.appendChild(stats);
+  }
+
+  renderStats();
+
+  document.querySelectorAll('[data-tab-panel]').forEach(el=>el.classList.add('hidden'));
+  document.querySelectorAll('[data-tab-btn]').forEach(el=>el.classList.remove('active'));
+
   stats.className = 'card';
+  stats.classList.remove('hidden');
+  stats.style.display = 'block';
 
-  const container = document.querySelector('main') || document.body;
-  container.appendChild(stats);
-}
+  btn.classList.add('active');
 
-stats.className = 'card';
-stats.classList.remove('hidden');
-stats.style.display = 'block';
-stats.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  
-btn.classList.add('active');
-
+  setTimeout(()=>{
+    stats.scrollIntoView({behavior:'smooth', block:'start'});
+  },100);
 });
 $('loginBtn').onclick=login; $('logoutBtn').onclick=()=>{localStorage.removeItem('playerId'); location.reload();}; $('saveBonusBtn').onclick=saveBonus; $('saveBonusResultsBtn').onclick=saveBonusResults;
 loadAll().then(()=>{ const id=localStorage.getItem('playerId'); if(id){ const p=state.players.find(x=>String(x.id)===id); if(p){ state.player=p; $('login').classList.add('hidden'); $('app').classList.remove('hidden'); renderApp(); } } });
