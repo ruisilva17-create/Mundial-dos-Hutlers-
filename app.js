@@ -647,6 +647,100 @@ function renderMatches(){
   `;
 }
 
+function renderStats(){
+  const el = $('stats');
+  if(!el) return;
 
+  const completed = state.matches.filter(m=>m.home_score!==null && m.away_score!==null);
+
+  if(!completed.length){
+    el.innerHTML = '<h2>📊 Estatísticas</h2><p class="hint">Ainda não há jogos com resultado.</p>';
+    return;
+  }
+
+  const rows = state.players.map(p=>{
+    let pts=0, exact=0, winner=0, failed=0, bets=0, missed=0;
+
+    completed.forEach(m=>{
+      const pr = state.predictions.find(x=>x.player_id===p.id && x.match_id===m.id);
+      if(!pr){ missed++; return; }
+
+      bets++;
+      const mp = matchPoints(pr,m);
+      pts += mp;
+
+      if(mp===5) exact++;
+      else if(mp===3) winner++;
+      else failed++;
+    });
+
+    return {
+      name:p.name,
+      pts,
+      exact,
+      winner,
+      failed,
+      bets,
+      missed,
+      accuracy: bets ? Math.round(((exact+winner)/bets)*100) : 0,
+      exactPct: bets ? Math.round((exact/bets)*100) : 0,
+      avg: bets ? (pts/bets).toFixed(2) : '0.00',
+      efficiency: bets ? Math.round((pts/(bets*5))*100) : 0
+    };
+  }).sort((a,b)=>b.efficiency-a.efficiency || b.pts-a.pts);
+
+  const bestExact = [...rows].sort((a,b)=>b.exact-a.exact)[0];
+  const bestAccuracy = [...rows].sort((a,b)=>b.accuracy-a.accuracy)[0];
+  const bestAvg = [...rows].sort((a,b)=>Number(b.avg)-Number(a.avg))[0];
+  const mostBets = [...rows].sort((a,b)=>b.bets-a.bets)[0];
+
+  el.innerHTML = `
+    <h2>📊 Estatísticas</h2>
+
+    <div class="stat-cards">
+      <div class="stat-card"><span>👑 Rei dos exatos</span><b>${bestExact?.name || '-'}</b><span>${bestExact?.exact || 0} exatos</span></div>
+      <div class="stat-card"><span>🎯 Melhor acerto</span><b>${bestAccuracy?.name || '-'}</b><span>${bestAccuracy?.accuracy || 0}% acerto</span></div>
+      <div class="stat-card"><span>📈 Melhor média</span><b>${bestAvg?.name || '-'}</b><span>${bestAvg?.avg || '0.00'} pts/jogo</span></div>
+      <div class="stat-card"><span>📝 Mais apostador</span><b>${mostBets?.name || '-'}</b><span>${mostBets?.bets || 0}/${completed.length}</span></div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table stats-table">
+        <tr>
+          <th>#</th>
+          <th>Jogador</th>
+          <th>Eficiência</th>
+          <th>% Acerto</th>
+          <th>% Exatos</th>
+          <th>Média</th>
+          <th>Exatos</th>
+          <th>Venc./Empate</th>
+          <th>Falhas</th>
+          <th>Sem aposta</th>
+          <th>Pts</th>
+        </tr>
+        ${rows.map((r,i)=>`
+          <tr>
+            <td>${i+1}.º</td>
+            <td><b>${r.name}</b></td>
+            <td><b>${r.efficiency}%</b></td>
+            <td>${r.accuracy}%</td>
+            <td>${r.exactPct}%</td>
+            <td>${r.avg}</td>
+            <td>${r.exact}</td>
+            <td>${r.winner}</td>
+            <td>${r.failed}</td>
+            <td>${r.missed}</td>
+            <td><b>${r.pts}</b></td>
+          </tr>
+        `).join('')}
+      </table>
+    </div>
+  `;
+}document.addEventListener('click', e=>{
+  const btn = e.target.closest('[data-tab-btn="stats"]');
+  if(!btn) return;
+  renderStats();
+});
 $('loginBtn').onclick=login; $('logoutBtn').onclick=()=>{localStorage.removeItem('playerId'); location.reload();}; $('saveBonusBtn').onclick=saveBonus; $('saveBonusResultsBtn').onclick=saveBonusResults;
 loadAll().then(()=>{ const id=localStorage.getItem('playerId'); if(id){ const p=state.players.find(x=>String(x.id)===id); if(p){ state.player=p; $('login').classList.add('hidden'); $('app').classList.remove('hidden'); renderApp(); } } });
