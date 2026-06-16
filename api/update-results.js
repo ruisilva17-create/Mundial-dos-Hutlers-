@@ -122,9 +122,17 @@ async function apiFootball(path){
 }
 
 async function getWorldCupFixtures(){
-  // FIFA World Cup costuma ser league=1 na API-Football.
-  // Se a API ainda não tiver jogos de 2026, isto devolve vazio.
-  return await apiFootball('fixtures?league=1&season=2026');
+  const dates = ['2026-06-15', '2026-06-16', '2026-06-17'];
+  const all = [];
+
+  for (const date of dates) {
+    const fixtures = await apiFootball(
+      `fixtures?league=1&season=2026&date=${date}`
+    );
+    all.push(...fixtures);
+  }
+
+  return all;
 }
 
 function findApiFixtureForMatch(match, fixtures){
