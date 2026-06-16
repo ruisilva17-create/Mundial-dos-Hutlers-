@@ -738,32 +738,3 @@ function renderStats(){
     </div>
   `;
 }
-document.addEventListener('click', e=>{
-  const btn = e.target.closest('[data-tab-btn="stats"]');
-  if(!btn) return;
-
-  e.preventDefault();
-
-  let stats = $('stats');
-
-  if(!stats){
-    stats = document.createElement('section');
-    stats.id = 'stats';
-    stats.dataset.tabPanel = 'stats';
-    stats.className = 'card';
-    const container = btn.parentElement.parentElement;
-container.appendChild(stats);
-  }
-
-  renderStats();
-
-stats = $('stats');
-
-document.querySelectorAll('[data-tab-panel]').forEach(el=>el.classList.add('hidden'));
-document.querySelectorAll('[data-tab-btn]').forEach(el=>el.classList.remove('active'));
-
-stats.className = 'card';
-stats.classList.remove('hidden');
-stats.style.display = 'block';
-
-btn.classList.add('active');
