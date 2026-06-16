@@ -126,10 +126,14 @@ async function getWorldCupFixtures(){
   const all = [];
 
   for (const date of dates) {
-    const fixtures = await apiFootball(
-      `fixtures?league=1&season=2026&date=${date}`
+    const fixtures = await apiFootball(`fixtures?date=${date}`);
+
+    const worldCupFixtures = fixtures.filter(f =>
+      Number(f.league?.id) === 1 &&
+      Number(f.league?.season) === 2026
     );
-    all.push(...fixtures);
+
+    all.push(...worldCupFixtures);
   }
 
   return all;
