@@ -554,7 +554,20 @@ function switchMatchSubtab(tab){
   document.querySelectorAll('[data-match-panel]').forEach(el=>el.classList.toggle('hidden', el.dataset.matchPanel !== tab));
   document.querySelectorAll('[data-match-tab]').forEach(el=>el.classList.toggle('active', el.dataset.matchTab === tab));
 }
-function renderMatches()
+function renderMatches(){
+  if(!state.matches.length){ $('matches').innerHTML='<p class="hint">Ainda não há jogos.</p>'; return; }
+  const missingSummary = state.player?.is_admin ? missingBetsSummaryHtml() : '';
+  const future = state.matches.filter(m => matchStatus(m)==='future');
+  const live = state.matches.filter(m => matchStatus(m)==='live');
+  const completed = state.matches.filter(m => matchStatus(m)==='completed');
+  $('matches').innerHTML = missingSummary + `<div class="match-subtabs">
+    <button class="match-subtab active" data-match-tab="future" onclick="switchMatchSubtab('future')">📅 Futuros (${future.length})</button>
+    <button class="match-subtab" data-match-tab="live" onclick="switchMatchSubtab('live')">🔴 A decorrer (${live.length})</button>
+    <button class="match-subtab" data-match-tab="completed" onclick="switchMatchSubtab('completed')">✅ Concluídos (${completed.length})</button>
+  </div>
+  <div class="match-panel" data-match-panel="future">${renderMatchList(future)}</div>
+  <div class="match-panel hidden" data-match-panel="live">${renderMatchList(live)}</div>
+  <div class="match-panel hidden" data-match-panel="completed">${renderMatchList(completed)}</div>`;
 }
 async function savePrediction(matchId){ const m=state.matches.find(x=>x.id===matchId); if(m && isMatchLocked(m)){ alert('Este jogo já começou. As apostas estão bloqueadas.'); return; } const h=$(`ph-${matchId}`).value, a=$(`pa-${matchId}`).value; if(h===''||a===''){ alert('Preenche os dois resultados.'); return; } await sb.from('predictions').upsert({player_id:state.player.id, match_id:matchId, home_prediction:Number(h), away_prediction:Number(a)},{onConflict:'player_id,match_id'}); await loadAll(); alert('Aposta guardada.'); }
 async function saveResult(matchId){
@@ -573,6 +586,160 @@ async function clearResult(matchId){
   await sb.from('matches').update({home_score:null, away_score:null}).eq('id',matchId);
   await loadAll();
   alert('Resultado limpo.');
+}
+function switchMatchSubtab(tab){
+  document.querySelectorAll('[data-match-panel]').forEach(el=>el.classList.toggle('hidden', el.dataset.matchPanel !== tab));
+  document.querySelectorAll('[data-match-tab]').forEach(el=>el.classList.toggle('active', el.dataset.matchTab === tab));
+}
+
+function matchDateKey(m){
+  return m.kickoff ? new Date(m.kickoff).toISOString().slice(0,10) : 'sem-data';
+}
+
+function matchDateLabel(key){
+  if(key === 'sem-data') return 'Sem data';
+  return new Date(key + 'T12:00:00').toLocaleDateString('pt-PT', {
+    weekday:'short',
+    day:'2-digit',
+    month:'short'
+  });
+}
+
+function renderMatches(){
+  if(!state.matches.length){
+    $('matches').innerHTML='<p class="hint">Ainda não há jogos.</p>';
+    return;
+  }
+
+  const missingSummary = state.player?.is_admin ? missingBetsSummaryHtml() : '';
+  const grouped = {};
+
+  state.matches.forEach(m=>{
+    const key = matchDateKey(m);
+    grouped[key] = grouped[key] || [];
+    grouped[key].push(m);
+  });
+
+  const keys = Object.keys(grouped).sort((a,b)=>{
+    if(a === 'sem-data') return 1;
+    if(b === 'sem-data') return -1;
+    return new Date(a) - new Date(b);
+  });
+
+  const todayKey = new Date().toISOString().slice(0,10);
+  const activeKey = keys.includes(todayKey) ? todayKey : keys[0];
+
+  $('matches').innerHTML = missingSummary + `
+    <div class="match-subtabs">
+      ${keys.map(key=>`
+        <button class="match-subtab ${key===activeKey?'active':''}" data-match-tab="${key}" onclick="switchMatchSubtab('${key}')">
+          📅 ${matchDateLabel(key)} (${grouped[key].length})
+        </button>
+      `).join('')}
+    </div>
+
+    ${keys.map(key=>`
+      <div class="match-panel ${key===activeKey?'':'hidden'}" data-match-panel="${key}">
+        <h3 class="date-header">${matchDateLabel(key)}</h3>
+        ${grouped[key].map(m=>renderSingleMatch(m)).join('')}
+      </div>
+    `).join('')}
+  `;
+}
+
+function renderStats(){
+  if(!$('stats')) return;
+
+  const completed = state.matches.filter(m=>m.home_score!==null && m.away_score!==null);
+
+  if(!completed.length){
+    $('stats').innerHTML = '<h2>📊 Estatísticas</h2><p class="hint">Ainda não há jogos com resultado.</p>';
+    return;
+  }
+
+  const rows = state.players.map(p=>{
+    let pts=0, exact=0, outcomeOnly=0, failed=0, bets=0, missed=0;
+
+    completed.forEach(m=>{
+      const pr = state.predictions.find(x=>x.player_id===p.id && x.match_id===m.id);
+
+      if(!pr){
+        missed++;
+        return;
+      }
+
+      bets++;
+      const mp = matchPoints(pr,m);
+      pts += mp;
+
+      if(mp===5) exact++;
+      else if(mp===3) outcomeOnly++;
+      else failed++;
+    });
+
+    return {
+      name:p.name,
+      pts,
+      exact,
+      outcomeOnly,
+      failed,
+      bets,
+      missed,
+      accuracy: bets ? Math.round(((exact + outcomeOnly) / bets) * 100) : 0,
+      exactPct: bets ? Math.round((exact / bets) * 100) : 0,
+      avg: bets ? (pts / bets).toFixed(2) : '0.00',
+      efficiency: bets ? Math.round((pts / (bets * 5)) * 100) : 0
+    };
+  }).sort((a,b)=>b.efficiency-a.efficiency || b.pts-a.pts || b.exact-a.exact);
+
+  const bestExact = [...rows].sort((a,b)=>b.exact-a.exact)[0];
+  const bestAccuracy = [...rows].sort((a,b)=>b.accuracy-a.accuracy || b.bets-a.bets)[0];
+  const bestAvg = [...rows].sort((a,b)=>Number(b.avg)-Number(a.avg))[0];
+  const mostBets = [...rows].sort((a,b)=>b.bets-a.bets)[0];
+
+  $('stats').innerHTML = `
+    <h2>📊 Estatísticas</h2>
+
+    <div class="stat-cards">
+      <div class="stat-card"><span>👑 Rei dos exatos</span><b>${bestExact?.name || '-'}</b><span>${bestExact?.exact || 0} exatos</span></div>
+      <div class="stat-card"><span>🎯 Melhor acerto</span><b>${bestAccuracy?.name || '-'}</b><span>${bestAccuracy?.accuracy || 0}% acerto</span></div>
+      <div class="stat-card"><span>📈 Melhor média</span><b>${bestAvg?.name || '-'}</b><span>${bestAvg?.avg || '0.00'} pts/jogo</span></div>
+      <div class="stat-card"><span>📝 Mais apostador</span><b>${mostBets?.name || '-'}</b><span>${mostBets?.bets || 0}/${completed.length}</span></div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="table stats-table">
+        <tr>
+          <th>#</th>
+          <th>Jogador</th>
+          <th>Eficiência</th>
+          <th>% Acerto</th>
+          <th>% Exatos</th>
+          <th>Média</th>
+          <th>Exatos</th>
+          <th>Venc./Empate</th>
+          <th>Falhas</th>
+          <th>Sem aposta</th>
+          <th>Pts</th>
+        </tr>
+        ${rows.map((r,i)=>`
+          <tr>
+            <td>${i+1}.º</td>
+            <td><b>${r.name}</b></td>
+            <td><b>${r.efficiency}%</b></td>
+            <td>${r.accuracy}%</td>
+            <td>${r.exactPct}%</td>
+            <td>${r.avg}</td>
+            <td>${r.exact}</td>
+            <td>${r.outcomeOnly}</td>
+            <td>${r.failed}</td>
+            <td>${r.missed}</td>
+            <td><b>${r.pts}</b></td>
+          </tr>
+        `).join('')}
+      </table>
+    </div>
+  `;
 }
 $('loginBtn').onclick=login; $('logoutBtn').onclick=()=>{localStorage.removeItem('playerId'); location.reload();}; $('saveBonusBtn').onclick=saveBonus; $('saveBonusResultsBtn').onclick=saveBonusResults;
 loadAll().then(()=>{ const id=localStorage.getItem('playerId'); if(id){ const p=state.players.find(x=>String(x.id)===id); if(p){ state.player=p; $('login').classList.add('hidden'); $('app').classList.remove('hidden'); renderApp(); } } });
