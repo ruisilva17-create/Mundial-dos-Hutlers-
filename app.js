@@ -554,20 +554,64 @@ function switchMatchSubtab(tab){
   document.querySelectorAll('[data-match-panel]').forEach(el=>el.classList.toggle('hidden', el.dataset.matchPanel !== tab));
   document.querySelectorAll('[data-match-tab]').forEach(el=>el.classList.toggle('active', el.dataset.matchTab === tab));
 }
+function matchDateKey(m){
+  return m.kickoff ? new Date(m.kickoff).toISOString().slice(0,10) : 'sem-data';
+}
+
+function matchDateLabel(key){
+  if(key === 'sem-data') return 'Sem data';
+  return new Date(key + 'T12:00:00').toLocaleDateString('pt-PT', {
+    weekday:'short',
+    day:'2-digit',
+    month:'short'
+  });
+}
+
+function switchMatchSubtab(tab){
+  document.querySelectorAll('[data-match-panel]').forEach(el=>el.classList.toggle('hidden', el.dataset.matchPanel !== tab));
+  document.querySelectorAll('[data-match-tab]').forEach(el=>el.classList.toggle('active', el.dataset.matchTab === tab));
+}
+
 function renderMatches(){
-  if(!state.matches.length){ $('matches').innerHTML='<p class="hint">Ainda não há jogos.</p>'; return; }
-  const missingSummary = state.player?.is_admin ? missingBetsSummaryHtml() : '';
-  const future = state.matches.filter(m => matchStatus(m)==='future');
-  const live = state.matches.filter(m => matchStatus(m)==='live');
-  const completed = state.matches.filter(m => matchStatus(m)==='completed');
-  $('matches').innerHTML = missingSummary + `<div class="match-subtabs">
-    <button class="match-subtab active" data-match-tab="future" onclick="switchMatchSubtab('future')">📅 Futuros (${future.length})</button>
-    <button class="match-subtab" data-match-tab="live" onclick="switchMatchSubtab('live')">🔴 A decorrer (${live.length})</button>
-    <button class="match-subtab" data-match-tab="completed" onclick="switchMatchSubtab('completed')">✅ Concluídos (${completed.length})</button>
-  </div>
-  <div class="match-panel" data-match-panel="future">${renderMatchList(future)}</div>
-  <div class="match-panel hidden" data-match-panel="live">${renderMatchList(live)}</div>
-  <div class="match-panel hidden" data-match-panel="completed">${renderMatchList(completed)}</div>`;
+  if(!state.matches.length){
+    $('matches').innerHTML='<p class="hint">Ainda não há jogos.</p>';
+    return;
+  }
+
+  const grouped = {};
+
+  state.matches.forEach(m=>{
+    const key = matchDateKey(m);
+    grouped[key] = grouped[key] || [];
+    grouped[key].push(m);
+  });
+
+  const keys = Object.keys(grouped).sort((a,b)=>{
+    if(a === 'sem-data') return 1;
+    if(b === 'sem-data') return -1;
+    return new Date(a) - new Date(b);
+  });
+
+  const todayKey = new Date().toISOString().slice(0,10);
+  const activeKey = keys.includes(todayKey) ? todayKey : keys[0];
+
+  $('matches').innerHTML = `
+    <div class="match-subtabs">
+      ${keys.map(key=>`
+        <button class="match-subtab ${key===activeKey?'active':''}" data-match-tab="${key}" onclick="switchMatchSubtab('${key}')">
+          📅 ${matchDateLabel(key)} (${grouped[key].length})
+        </button>
+      `).join('')}
+    </div>
+
+    ${keys.map(key=>`
+      <div class="match-panel ${key===activeKey?'':'hidden'}" data-match-panel="${key}">
+        <h3 class="date-header">${matchDateLabel(key)}</h3>
+        ${grouped[key].map(m=>renderSingleMatch(m)).join('')}
+      </div>
+    `).join('')}
+  `;
+}
 }
 async function savePrediction(matchId){ const m=state.matches.find(x=>x.id===matchId); if(m && isMatchLocked(m)){ alert('Este jogo já começou. As apostas estão bloqueadas.'); return; } const h=$(`ph-${matchId}`).value, a=$(`pa-${matchId}`).value; if(h===''||a===''){ alert('Preenche os dois resultados.'); return; } await sb.from('predictions').upsert({player_id:state.player.id, match_id:matchId, home_prediction:Number(h), away_prediction:Number(a)},{onConflict:'player_id,match_id'}); await loadAll(); alert('Aposta guardada.'); }
 async function saveResult(matchId){
