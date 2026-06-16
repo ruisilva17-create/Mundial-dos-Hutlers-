@@ -737,7 +737,8 @@ function renderStats(){
       </table>
     </div>
   `;
-}document.addEventListener('click', e=>{
+}
+document.addEventListener('click', e=>{
   const btn = e.target.closest('[data-tab-btn="stats"]');
   if(!btn) return;
   renderStats();
