@@ -68,6 +68,13 @@ function injectBetterPredictionStyles(){
     .match-subtab{padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);color:inherit;font-weight:800;cursor:pointer}
     .match-subtab.active{background:#2563eb;border-color:#60a5fa}
     .match-panel.hidden{display:none}
+    .date-header{margin:22px 0 10px;padding:10px 12px;border-radius:12px;background:rgba(37,99,235,.16);border:1px solid rgba(96,165,250,.28);text-transform:capitalize}
+    .fixture-status{display:inline-block;margin-top:8px;padding:5px 9px;border-radius:999px;font-size:.78rem;font-weight:800}
+    .fixture-status.ok{background:rgba(34,197,94,.16);color:#bbf7d0;border:1px solid rgba(34,197,94,.38)}
+    .fixture-status.pending{background:rgba(250,204,21,.14);color:#fde68a;border:1px solid rgba(250,204,21,.36)}
+    .fixture-status.missing{background:rgba(239,68,68,.13);color:#fecaca;border:1px solid rgba(239,68,68,.34)}
+    .match.has-result{border-color:rgba(34,197,94,.32)}
+    .match.needs-api{border-color:rgba(239,68,68,.30)}
     .bonus-reveal,.live-results-box,.stats-day{margin-top:18px;border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:12px;background:rgba(255,255,255,.05)}
     .bonus-table,.stats-table,.match-prediction-table{min-width:640px}
     .live-results-status{margin-top:8px;font-size:.9rem;opacity:.9}
@@ -161,7 +168,7 @@ function renderStats(){
     byDay[k].push(m);
   });
   const totalRows = state.players.map(p=>{
-    let pts=0, exact=0, outcomeOnly=0, bets=0;
+    let pts=0, exact=0, outcomeOnly=0, failed=0, bets=0;
     completed.forEach(m=>{
       const pr = state.predictions.find(x=>x.player_id===p.id && x.match_id===m.id);
       if(!pr) return;
@@ -170,15 +177,24 @@ function renderStats(){
       pts += mp;
       if(mp===5) exact++;
       else if(mp===3) outcomeOnly++;
+      else failed++;
     });
-    return {name:p.name, pts, exact, outcomeOnly, bets};
+    const pct = bets ? Math.round(((exact + outcomeOnly) / bets) * 100) : 0;
+    const avg = bets ? (pts / bets).toFixed(1) : '0.0';
+    return {name:p.name, pts, exact, outcomeOnly, failed, bets, pct, avg};
   }).sort((a,b)=>b.pts-a.pts || b.exact-a.exact || a.name.localeCompare(b.name));
+  const leaderPts = totalRows[0]?.pts || 0;
   $('stats').innerHTML = `<h2>📊 Estatísticas</h2>
     <div class="stat-cards">
       <div class="stat-card"><span>Líder</span><b>${totalRows[0]?.name || '-'}</b><span>${totalRows[0]?.pts || 0} pts</span></div>
       <div class="stat-card"><span>Mais exatos</span><b>${[...totalRows].sort((a,b)=>b.exact-a.exact)[0]?.name || '-'}</b><span>${[...totalRows].sort((a,b)=>b.exact-a.exact)[0]?.exact || 0}</span></div>
+      <div class="stat-card"><span>Melhor % acerto</span><b>${[...totalRows].sort((a,b)=>b.pct-a.pct || b.bets-a.bets)[0]?.name || '-'}</b><span>${[...totalRows].sort((a,b)=>b.pct-a.pct || b.bets-a.bets)[0]?.pct || 0}%</span></div>
       <div class="stat-card"><span>Jogos concluídos</span><b>${completed.length}</b></div>
     </div>
+    <div class="table-wrap"><table class="table stats-table">
+      <tr><th>#</th><th>Jogador</th><th>Pontos</th><th>% acerto</th><th>Média/jogo</th><th>Dif. líder</th><th>Exatos</th><th>Venc./Empate</th><th>Falhou</th><th>Apostas</th></tr>
+      ${totalRows.map((r,i)=>`<tr><td>${i+1}.º</td><td><b>${r.name}</b></td><td><b>${r.pts}</b></td><td>${r.pct}%</td><td>${r.avg}</td><td>${leaderPts-r.pts===0?'—':`-${leaderPts-r.pts}`}</td><td>${r.exact}</td><td>${r.outcomeOnly}</td><td>${r.failed}</td><td>${r.bets}/${completed.length}</td></tr>`).join('')}
+    </table></div>
     ${Object.entries(byDay).map(([date,matches])=>{
       const rows = state.players.map(p=>{
         let pts=0, exact=0, outcomeOnly=0, failed=0, bets=0;
@@ -192,11 +208,14 @@ function renderStats(){
           else if(mp===3) outcomeOnly++;
           else failed++;
         });
-        return {name:p.name,pts,exact,outcomeOnly,failed,bets};
+        const pct = bets ? Math.round(((exact + outcomeOnly) / bets) * 100) : 0;
+        const avg = bets ? (pts / bets).toFixed(1) : '0.0';
+        return {name:p.name,pts,exact,outcomeOnly,failed,bets,pct,avg};
       }).sort((a,b)=>b.pts-a.pts || b.exact-a.exact || a.name.localeCompare(b.name));
+      const dayLeaderPts = rows[0]?.pts || 0;
       return `<div class="stats-day"><h3>${date}</h3><div class="table-wrap"><table class="table stats-table">
-        <tr><th>Jogador</th><th>Pontos</th><th>Exatos</th><th>Venc./Empate</th><th>Falhou</th><th>Apostas</th></tr>
-        ${rows.map(r=>`<tr><td><b>${r.name}</b></td><td><b>${r.pts}</b></td><td>${r.exact}</td><td>${r.outcomeOnly}</td><td>${r.failed}</td><td>${r.bets}/${matches.length}</td></tr>`).join('')}
+        <tr><th>Jogador</th><th>Pontos</th><th>%</th><th>Média</th><th>Dif.</th><th>Exatos</th><th>Venc./Empate</th><th>Falhou</th><th>Apostas</th></tr>
+        ${rows.map(r=>`<tr><td><b>${r.name}</b></td><td><b>${r.pts}</b></td><td>${r.pct}%</td><td>${r.avg}</td><td>${dayLeaderPts-r.pts===0?'—':`-${dayLeaderPts-r.pts}`}</td><td>${r.exact}</td><td>${r.outcomeOnly}</td><td>${r.failed}</td><td>${r.bets}/${matches.length}</td></tr>`).join('')}
       </table></div></div>`;
     }).join('')}`;
 }
@@ -225,7 +244,7 @@ function playerBreakdown(playerId){
     groupPts,
     bonusPts,
     total: matchPts + groupPts + bonusPts,
-    matchBets: playerPreds.length,
+    matchBets: new Set(playerPreds.map(p=>p.match_id)).size,
     totalMatches: state.matches.length,
     missingOpenCount: missingOpen.length,
     missingOpen
@@ -496,6 +515,13 @@ async function copyMissingBetsSummary(){
     prompt('Copia este texto para o WhatsApp:', text);
   }
 }
+function fixtureStatusHtml(m){
+  if(!state.player?.is_admin) return '';
+  const hasResult = m.home_score !== null && m.away_score !== null;
+  if(hasResult) return '<div class="fixture-status ok">🟢 Resultado atualizado</div>';
+  if(m.api_fixture_id) return '<div class="fixture-status pending">🟡 Fixture associada</div>';
+  return '<div class="fixture-status missing">🔴 Fixture não associada</div>';
+}
 function renderSingleMatch(m){
   const pr=state.predictions.find(x=>x.player_id===state.player.id && x.match_id===m.id)||{};
   const locked=isMatchLocked(m);
@@ -503,7 +529,9 @@ function renderSingleMatch(m){
   const betArea = locked
     ? `<div class="locked">Apostas bloqueadas</div><div class="small">A tua aposta: ${pr.id?`<b>${pr.home_prediction}-${pr.away_prediction}</b>`:'sem aposta'}</div>`
     : `<div class="scoreline"><label>${f(m.home_team)}<input id="ph-${m.id}" type="number" value="${pr.home_prediction??''}"></label><label>${f(m.away_team)}<input id="pa-${m.id}" type="number" value="${pr.away_prediction??''}"></label><button onclick="savePrediction(${m.id})">Guardar aposta</button></div>`;
-  return `<div class="match"><div class="teams">${f(m.home_team)} vs ${f(m.away_team)}</div><div class="small">${m.kickoff?new Date(m.kickoff).toLocaleString('pt-PT'):''}</div>${m.home_score!==null&&m.away_score!==null?`<div class="small"><b>Resultado:</b> ${m.home_score}-${m.away_score}</div>`:''}${betArea}${matchPredictionsHtml(m,locked)}${admin}</div>`;
+  const fixtureStatus = fixtureStatusHtml(m);
+  const matchClass = m.home_score!==null && m.away_score!==null ? 'match has-result' : (!m.api_fixture_id ? 'match needs-api' : 'match');
+  return `<div class="${matchClass}"><div class="teams">${f(m.home_team)} vs ${f(m.away_team)}</div><div class="small">${m.kickoff?new Date(m.kickoff).toLocaleString('pt-PT'):''}</div>${m.home_score!==null&&m.away_score!==null?`<div class="small"><b>Resultado:</b> ${m.home_score}-${m.away_score}</div>`:''}${fixtureStatus}${betArea}${matchPredictionsHtml(m,locked)}${admin}</div>`;
 }
 function renderMatchList(matches){
   if(!matches.length) return '<p class="hint">Sem jogos nesta secção.</p>';
