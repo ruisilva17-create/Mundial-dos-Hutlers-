@@ -148,9 +148,9 @@ function findApiFixtureForMatch(match, fixtures){
 }
 
 export default async function handler(req, res){
-  if(req.method !== 'POST'){
-    return res.status(405).json({ error: 'Usa POST.' });
-  }
+  if(!['GET','POST'].includes(req.method)){
+  return res.status(405).json({ error: 'Usa GET ou POST.' });
+}
 
   try{
     const matches = await supabaseFetch('matches?select=*');
