@@ -766,8 +766,10 @@ if(!stats){
   container.appendChild(stats);
 }
 
+stats.className = 'card';
 stats.classList.remove('hidden');
 stats.style.display = 'block';
+stats.scrollIntoView({ behavior: 'smooth', block: 'start' });
   
 btn.classList.add('active');
 
