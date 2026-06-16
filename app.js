@@ -768,9 +768,8 @@ if(!stats){
 
 stats.classList.remove('hidden');
 stats.style.display = 'block';
-  }
-
-  btn.classList.add('active');
+  
+btn.classList.add('active');
 
 });
 $('loginBtn').onclick=login; $('logoutBtn').onclick=()=>{localStorage.removeItem('playerId'); location.reload();}; $('saveBonusBtn').onclick=saveBonus; $('saveBonusResultsBtn').onclick=saveBonusResults;
