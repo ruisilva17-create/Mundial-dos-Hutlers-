@@ -3,6 +3,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let state = { player:null, players:[], matches:[], predictions:[], groups:[], groupPreds:[], bonusPreds:[], bonusResults:null };
 let activeTab = 'ranking';
+let activeMatchDateKey = null;
 function switchTab(tab){
   activeTab = tab;
   document.querySelectorAll('[data-tab-panel]').forEach(el=>el.classList.toggle('hidden', el.dataset.tabPanel !== tab));
@@ -588,6 +589,7 @@ async function clearResult(matchId){
   alert('Resultado limpo.');
 }
 function switchMatchSubtab(tab){
+  activeMatchDateKey = tab;
   document.querySelectorAll('[data-match-panel]').forEach(el=>el.classList.toggle('hidden', el.dataset.matchPanel !== tab));
   document.querySelectorAll('[data-match-tab]').forEach(el=>el.classList.toggle('active', el.dataset.matchTab === tab));
 }
@@ -626,8 +628,12 @@ function renderMatches(){
     return new Date(a) - new Date(b);
   });
 
-  const todayKey = new Date().toISOString().slice(0,10);
-  const activeKey = keys.includes(todayKey) ? todayKey : keys[0];
+ const todayKey = new Date().toISOString().slice(0,10);
+const activeKey = activeMatchDateKey && keys.includes(activeMatchDateKey)
+  ? activeMatchDateKey
+  : (keys.includes(todayKey) ? todayKey : keys[0]);
+
+activeMatchDateKey = activeKey;
 
   $('matches').innerHTML = missingSummary + `
     <div class="match-subtabs">
