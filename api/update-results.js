@@ -121,8 +121,13 @@ async function apiFootball(path){
   return data.response || [];
 }
 
-async function getWorldCupFixtures(){
-  const dates = ['2026-06-15', '2026-06-16', '2026-06-17'];
+async function getWorldCupFixtures(matches){
+  const dates = [...new Set(
+    matches
+      .filter(m => m.kickoff)
+      .map(m => new Date(m.kickoff).toISOString().slice(0,10))
+  )];
+
   const all = [];
 
   for (const date of dates) {
@@ -138,7 +143,6 @@ async function getWorldCupFixtures(){
 
   return all;
 }
-
 function findApiFixtureForMatch(match, fixtures){
   if(match.api_fixture_id){
     return fixtures.find(f => Number(f.fixture?.id) === Number(match.api_fixture_id));
@@ -166,7 +170,7 @@ export default async function handler(req, res){
 
   try{
     const matches = await supabaseFetch('matches?select=*');
-    const fixtures = await getWorldCupFixtures();
+    const fixtures = await getWorldCupFixtures(matches);
 
     let updated = 0;
     let linked = 0;
@@ -178,6 +182,7 @@ export default async function handler(req, res){
         unmatched++;
         continue;
       }
+      linked++;
 
       const fixtureId = fx.fixture?.id;
       const homeGoals = fx.goals?.home;
@@ -186,7 +191,6 @@ export default async function handler(req, res){
       const patch = {};
       if(fixtureId && Number(match.api_fixture_id) !== Number(fixtureId)){
         patch.api_fixture_id = fixtureId;
-        linked++;
       }
 
       if(homeGoals !== null && awayGoals !== null && homeGoals !== undefined && awayGoals !== undefined){
