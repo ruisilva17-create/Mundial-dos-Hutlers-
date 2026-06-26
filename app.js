@@ -220,8 +220,114 @@ function renderStats(){
       </table></div></div>`;
     }).join('')}`;
 }
+function escHtml(v){
+  return String(v ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#039;');
+}
 
-function renderApp(){ injectBetterPredictionStyles(); ensureExtraUi();  $('who').textContent = state.player.name; $('adminBadge').classList.toggle('hidden',!state.player.is_admin); $('adminTabBtn').classList.toggle('hidden',!state.player.is_admin); $('adminBonus').classList.toggle('hidden',!state.player.is_admin); $('adminGroups').classList.toggle('hidden',!state.player.is_admin); if(!state.player.is_admin && activeTab==='admin') activeTab='ranking'; renderRanking(); renderBonus(); renderGroups(); renderMatches(); renderStats(); ensureLiveResultsAdminBox(); switchTab(activeTab); }
+function isPlaceholderTeam(name){
+  const n = String(name || '').toLowerCase();
+  return n.includes('tbd') || n.includes('group') || n.includes('winner') || n.includes('runner');
+}
+
+function allKnownTeams(){
+  const teams = new Set();
+
+  state.groups.forEach(g => (g.teams || []).forEach(t => {
+    if(t && !isPlaceholderTeam(t)) teams.add(t);
+  }));
+
+  state.matches.forEach(m => {
+    if(m.home_team && !isPlaceholderTeam(m.home_team)) teams.add(m.home_team);
+    if(m.away_team && !isPlaceholderTeam(m.away_team)) teams.add(m.away_team);
+  });
+
+  return [...teams].sort((a,b)=>f(a).localeCompare(f(b)));
+}
+
+function renderKnockoutAdminBox(){
+  if(!state.player?.is_admin) return;
+
+  const adminPanel = $('admin') || $('adminGroups')?.parentElement || $('adminBonus')?.parentElement;
+  if(!adminPanel) return;
+
+  let box = $('knockoutAdminBox');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'knockoutAdminBox';
+    box.className = 'live-results-box';
+    adminPanel.prepend(box);
+  }
+
+  const teams = allKnownTeams();
+
+  const matches = state.matches
+    .filter(m => isPlaceholderTeam(m.home_team) || isPlaceholderTeam(m.away_team))
+    .sort((a,b)=>new Date(a.kickoff || 0) - new Date(b.kickoff || 0));
+
+  box.innerHTML = `
+    <h3>🏆 Atualizar eliminatórias manualmente</h3>
+    <p class="hint">Substitui TBD / Group winner / runners-up pelas equipas reais.</p>
+
+    <datalist id="knockoutTeamOptions">
+      ${teams.map(t=>`<option value="${escHtml(t)}">${escHtml(f(t))}</option>`).join('')}
+    </datalist>
+
+    ${matches.length ? matches.map(m=>`
+      <div class="match">
+        <div class="teams">${escHtml(f(m.home_team))} vs ${escHtml(f(m.away_team))}</div>
+        <div class="small">${m.kickoff ? new Date(m.kickoff).toLocaleString('pt-PT') : ''}</div>
+
+        <label>Equipa casa
+          <input id="ko-home-${m.id}" list="knockoutTeamOptions" value="${escHtml(m.home_team || '')}">
+        </label>
+
+        <label>Equipa fora
+          <input id="ko-away-${m.id}" list="knockoutTeamOptions" value="${escHtml(m.away_team || '')}">
+        </label>
+
+        <button onclick="saveKnockoutMatch(${m.id})">Guardar equipas</button>
+      </div>
+    `).join('') : '<p class="hint">Não há jogos por atualizar.</p>'}
+  `;
+}
+
+async function saveKnockoutMatch(matchId){
+  const home = $(`ko-home-${matchId}`)?.value.trim();
+  const away = $(`ko-away-${matchId}`)?.value.trim();
+
+  if(!home || !away){
+    alert('Preenche as duas equipas.');
+    return;
+  }
+
+  if(home === away){
+    alert('As duas equipas não podem ser iguais.');
+    return;
+  }
+
+  const { error } = await sb
+    .from('matches')
+    .update({
+      home_team: home,
+      away_team: away,
+      api_fixture_id: null
+    })
+    .eq('id', matchId);
+
+  if(error){
+    alert('Erro ao guardar: ' + error.message);
+    return;
+  }
+
+  await loadAll();
+  alert('Jogo atualizado.');
+}
+function renderApp(){ injectBetterPredictionStyles(); ensureExtraUi();  $('who').textContent = state.player.name; $('adminBadge').classList.toggle('hidden',!state.player.is_admin); $('adminTabBtn').classList.toggle('hidden',!state.player.is_admin); $('adminBonus').classList.toggle('hidden',!state.player.is_admin); $('adminGroups').classList.toggle('hidden',!state.player.is_admin); if(!state.player.is_admin && activeTab==='admin') activeTab='ranking'; renderRanking(); renderBonus(); renderGroups(); renderMatches(); renderStats(); ensureLiveResultsAdminBox(); renderKnockoutAdminBox(); switchTab(activeTab); }
 function playerBreakdown(playerId){
   let matchPts = 0;
   let groupPts = 0;
