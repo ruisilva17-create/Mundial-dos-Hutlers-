@@ -39,7 +39,33 @@ const teamPt = team => {
 const f = team => { const name = teamPt(team); return `${flagMap[name]||''} ${name}`.trim(); };
 
 function outcome(h,a){ if(h===null||a===null||h===undefined||a===undefined) return null; return h>a?'home':h<a?'away':'draw'; }
-function matchPoints(pred, match){ if(match.home_score===null||match.away_score===null||pred.home_prediction===null||pred.away_prediction===null) return 0; if(pred.home_prediction===match.home_score && pred.away_prediction===match.away_score) return 5; return outcome(pred.home_prediction,pred.away_prediction)===outcome(match.home_score,match.away_score)?3:0; }
+function isKnockoutMatch(match){
+  const d = match.kickoff ? new Date(match.kickoff) : null;
+
+  const knockoutStart = new Date('2026-06-28T00:00:00+01:00');
+
+  return d && d >= knockoutStart;
+}
+
+function matchPoints(pred, match){
+  if(
+    match.home_score===null ||
+    match.away_score===null ||
+    pred.home_prediction===null ||
+    pred.away_prediction===null
+  ) return 0;
+
+  const exactPoints = isKnockoutMatch(match) ? 10 : 5;
+
+  if(
+    pred.home_prediction===match.home_score &&
+    pred.away_prediction===match.away_score
+  ) return exactPoints;
+
+  return outcome(pred.home_prediction,pred.away_prediction)===outcome(match.home_score,match.away_score)
+    ? 3
+    : 0;
+}
 function groupPoints(gp, group){ if(!group.final_order || !gp.predicted_order) return 0; return gp.predicted_order.reduce((sum,t,i)=>sum+(group.final_order[i]===t?3:0),0); }
 function bonusPoints(bp){ const r=state.bonusResults||{}; let pts=0; if(bp?.champion && r.champion && bp.champion.trim().toLowerCase()===r.champion.trim().toLowerCase()) pts+=10; if(bp?.runner_up && r.runner_up && bp.runner_up.trim().toLowerCase()===r.runner_up.trim().toLowerCase()) pts+=5; if(bp?.top_scorer && r.top_scorer && bp.top_scorer.trim().toLowerCase()===r.top_scorer.trim().toLowerCase()) pts+=5; return pts; }
 async function loadAll(){
